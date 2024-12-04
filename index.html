@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jonas-SLA</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <!-- Main Div for whole project formatting -->
+    <div class="container">
+
+        <!-- Main Page Field -->
+        <main> 
+            <!-- Image Edit Section -->
+            <section id="img">   
+                <img src="./img/imgtest.png">
+            </section>
+            <!-- Parameters Section -->
+            <section id="parameters">
+                <!-- Checkbox 1 Declaration -->
+                <label>
+                    <input type="checkbox" id="toggleCheckbox">
+                    Show Content
+                </label>
+                <!-- Checkbox 1 Action -->
+                <div id="hiddenContent">
+                    <p>This content is now visible!</p>
+                </div>
+            </section>
+            <!-- Calculator Section -->
+            <section id="calculator">
+                <!-- Form to Get Inputs -->
+                <form id="form">
+                    <h1 id="title">
+                        <!-- Title H1 -->
+                        Calculadora Dimensionadora de Válvulas de Controle
+                    </h1>
+                    <!-- Pressure IN Input Box -->
+                    <div class="inputBox">
+                        <label for="pressureIN">
+                            Pressão de Entrada
+                        </label>
+                        <div class="inputField">
+                            <input type="number" id="pressureIN" required>
+                            <span>Pa</span>
+                        </div>
+                    </div>
+                    <!-- Pressure OUT Input Box -->
+                    <div class="inputBox">
+                        <label for="pressureOUT">
+                            Pressão de Saída
+                        </label>
+                        <div class="inputField">
+                            <input type="number" id="pressureOUT" required>
+                            <span>PSI</span>
+                        </div>
+                    </div>
+                    <button id="calculate">
+                            Calcular
+                    </button>
+                </form>
+                <div id="infos">
+                    <div id="result">
+                        <div id="dim">
+                            <span id="value"></span>
+                            <span>Valor Calculado</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="index.js"></script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+:root {
+  --bg: #0f1724;
+  --card: #0b1220;
+  --accent: #60a5fa; /* Blue */
+  --accent-green: #34d399; /* Green */
+  --accent-yellow: #f59e0b; /* Amber */
+  --muted: #9aa5b1;
+  --glass: rgba(255, 255, 255, 0.03);
+  --border-color: rgba(255, 255, 255, 0.06);
+  --panel-radius: 12px;
+  --gap: 18px;
+  font-family: Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #071021 0%, #0b1220 100%);
+  color: #e6eef6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding: 28px;
+}
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: var(--gap);
+  align-items: start;
+}
+
+header {
+  grid-column: 1 / -1;
+  margin-bottom: 6px;
+}
+h1 {
+  margin: 0;
+  font-size: 20px;
+}
+h2 {
+  margin: 0 0 16px 0;
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+h3 {
+  margin: 0 0 10px 0;
+}
+.subtitle {
+  margin: 4px 0 12px;
+  color: var(--muted);
+}
+
+.panel {
+  background: var(--card);
+  border-radius: var(--panel-radius);
+  padding: 20px;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
+  border: 1px solid var(--border-color);
+}
+
+/* ============================================
+    Form & Input Group Styling
+    ============================================ */
+form .row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+form .row:last-child {
+  margin-bottom: 0;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 16px 0;
+}
+
+label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* Base style for standalone inputs/selects */
+input[type="number"],
+input[type="text"],
+select {
+  border: 1px solid var(--border-color);
+  background: var(--glass);
+  color: inherit;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 100%; /* Standalone inputs are full-width */
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Input Group styles */
+.input-group {
+  display: flex;
+  width: 100%;
+}
+.input-group input {
+  flex-grow: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  min-width: 0;
+  width: 0; /* Overrides the 'width: 100%' base style */
+}
+
+/* This is the fixed-width style for unit selectors */
+.input-group select {
+  flex-grow: 0;
+  flex-shrink: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background: #0b1220;
+  
+  width: 110px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  
+  padding-left: 0;
+  padding-right: 0;
+}
+
+
+/* ============================================
+    Action Buttons
+    ============================================ */
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--muted);
+  padding: 10px 16px; /* <-- Reverted to smaller padding */
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px; /* <-- Reverted to smaller font */
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  background: var(--glass);
+  border-color: var(--muted);
+  color: #fff;
+}
+
+.btn.primary {
+  background: linear-gradient(90deg, var(--accent), #3b82f6);
+  color: #06263b;
+  border: none;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.15);
+  font-weight: 700; /* <-- Extra bold */
+  padding: 12px 20px;
+  font-size: 15px;
+}
+
+.btn.primary:hover {
+  background: linear-gradient(90deg, var(--accent), #3b82f6);
+  filter: brightness(1.15); /* <-- Add a "glow" */
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.22); /* <-- Lift on hover */
+}
+
+/* ============================================
+    Result & Recommendation Cards (Unchanged)
+    ============================================ */
+
+.result {
+  padding: 0;
+  background: none;
+  min-height: auto;
+  display: block;
+  text-align: left;
+}
+
+.result-summary {
+  background: var(--glass);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.result-summary h3 {
+  margin: 0 0 8px 0;
+  color: var(--accent);
+  font-size: 16px;
+}
+.result-summary p {
+  margin: 0;
+  font-size: 14px;
+}
+.recommendation-card {
+  background: var(--glass);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--muted);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.recommendation-card strong {
+  color: #fff;
+}
+.recommendation-card .card-title {
+  font-size: 15px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+.recommendation-card.ideal-fit {
+  border-left-color: var(--accent-green);
+  background: rgba(52, 211, 153, 0.05);
+}
+.recommendation-card.ideal-fit .card-title {
+  color: var(--accent-green);
+}
+.recommendation-card.acceptable-fit {
+  border-left-color: var(--accent-yellow);
+  background: rgba(245, 158, 11, 0.05);
+}
+.recommendation-card.acceptable-fit .card-title {
+  color: var(--accent-yellow);
+}
+
+/* ============================================
+    Custom Fluid & Debug Section
+    ============================================ */
+
+/* This is the reverted '#customFluidInputs' block */
+/* 1. Group the main box style */
+.form-group-box,
+#customFluidInputs {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  transition: all 0.3s ease;
+}
+
+/* 2. Group the <h3> title style */
+.form-group-box h3,
+#customFluidInputs h3 {
+  color: var(--accent);
+  font-size: 14px;
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+/* 3. Group the .row margin style */
+.form-group-box .row,
+#customFluidInputs .row {
+  margin-bottom: 8px;
+}
+.form-group-box .row:last-child,
+#customFluidInputs .row:last-child {
+  margin-bottom: 0;
+}
+
+/* 4. Group the input/select style */
+.form-group-box input,
+.form-group-box select,
+#customFluidInputs input,
+#customFluidInputs select {
+  background: rgba(255, 255, 255, 0.03);
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.form-group-box .input-group input,
+#customFluidInputs .input-group input {
+    padding-left: 8px;
+}
+
+/* 5. Group the label style */
+.form-group-box label,
+#customFluidInputs label {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+#customFluidInputs[style*="display: block"] {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* ============================================
+    Test & Log Section
+    ============================================ */
+
+footer {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.test-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.log,
+#debugLogOutput {
+  white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: monospace;
+}
+
+#debugLogOutput {
+  height: 200px; /* Fixed height */
+  margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  body {
+    padding: 12px;
+  }
+  .container {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+  .inputs {
+    grid-row: auto;
+  }
+}
+
+#debugContainer {
+  display: none; /* Hide by default until button is clicked */
+}
+
+/* Make dropdowns use your target background color */
+select {
+  background: #031521 !important;   
+  color: #e6eef6 !important;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+/* Hide the default arrow (optional) */
+select::-ms-expand {
+  display: none;
+}
+

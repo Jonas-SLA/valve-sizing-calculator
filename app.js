@@ -130,7 +130,7 @@ function debugLog(message, ...args) {
 //Para outros fluidos, pedir informação: PC(Ponto Crítico), Pressão de Vapor, Densidade Relativa(ou densidade do fluido dividido pela da água)
 /**
  * @const {object} numericalConstants
- * @description ANSI/ISA-75.01.01 standard numerical constants for Imperial units.
+ * @description Standard numerical constants for Imperial units.
  */
 const P_ATMOSPHERIC_PSI = 14.7;   // Atmospheric pressure in psi
 const D_REFERENCE_WATER = 1000.0; // Reference density in kg/m^3
@@ -140,10 +140,11 @@ const D_REFERENCE_WATER = 1000.0; // Reference density in kg/m^3
  * @description Conversion factors to standardized internal units.
  */
 const conversionConstants = {
-  KPA_TO_PSI: 0.145038,
-  M3H_TO_GPM: 4.40287,
-  MM_TO_IN: 0.0393701,
-  M2S_TO_CST: 1000000, // 1 m²/s = 1,000,000 cSt
+    KPA_TO_PSI: 0.145038,
+    BAR_TO_PSI: 14.5038,
+    M3H_TO_GPM: 4.40287,
+    MM_TO_IN:   0.0393701,
+    M2S_TO_CST: 1000000, // 1 m²/s = 1,000,000 cSt
 };
 
 const numericalConstants = {
@@ -227,10 +228,21 @@ const UserInputs = (() =>
         pipeDiameter: 0,
         fluidType: 0,
         valveType: 0,
+        // NEW: Advanced Sizing Inputs
+        flowRateMin: 0,
+        inletPressureMin: 0,
+        outletPressureMin: 0,
+        flowRateMax: 0,
+        inletPressureMax: 0,
+        outletPressureMax: 0,
+        // NEW: User Valve Inputs
+        customValveSize: 4,
+        customFl: 0.9,
+        customFd: 0.46
     };
 
     const Fluids = Object.freeze({ WATER: 0, CUSTOM: 1 });
-    const Valves = Object.freeze({ GLOBEOPEN: 0, GLOBECLOSE: 1, BUTTERFLY: 2, BALL: 3 });
+    const Valves = Object.freeze({ GLOBEOPEN: 0, GLOBECLOSE: 1, BUTTERFLY: 2, BALL: 3, CUSTOM: 99 });
 
     const fluidData = {
         [Fluids.WATER]: { ...liquidWater, isSelected: true },
@@ -242,6 +254,7 @@ const UserInputs = (() =>
         [Valves.GLOBECLOSE]: { ...valveGlobesSinglePortContouredPlugClose },
         [Valves.BUTTERFLY]: { ...valveButterfly },
         [Valves.BALL]: { ...valveBallFull },
+        [Valves.CUSTOM]: { Fl: 0.9, Fd: 0.46, Cv: 0, Xt: 0.72 }
     };
 
     /**
@@ -439,7 +452,7 @@ function estimateWaterViscosity_cP(T) {
     let mu_cP = mu_Pa_s * 1000.0;
 
     // Safety clamps — prevents numerical blowups at edge temperatures
-    if (mu_cP < 0.25) mu_cP = 0.25;
+    if (mu_cP < 0.1) mu_cP = 0.1;
     if (mu_cP > 1000) mu_cP = 1000;
 
     return mu_cP;
@@ -548,7 +561,7 @@ function estimateWaterVaporPressure(T) {
  * Calculates the liquid pressure recovery factor (FF) for flashing service.
  *
  * Purpose:
- *   FF is an empirical factor used in the ISA liquid sizing equations to account
+ *   FF is an empirical factor used in the liquid sizing equations to account
  *   for the vaporization tendency of the liquid (flashing). It reduces the
  *   effective available pressure head when vapor pressure is significant.
  *
@@ -600,7 +613,7 @@ function calculateFF() {
  * Determines whether the flow through the valve is choked (critical) for liquid.
  *
  * Purpose:
- *   Uses the ISA/ANSI choked-liquid criterion:
+ *   Uses the choked-liquid criterion:
  *     ΔP_crit = F_L^2 * (P1 - F_F * P_v)
  *   Flow is choked if actual ΔP >= ΔP_crit.
  *
@@ -632,7 +645,7 @@ function isChokedFlow(FF) {
         return null;
     }
 
-    // Compute the ISA choked threshold (ΔP_crit)
+    // Compute the choked threshold (ΔP_crit)
     const chokedThreshold = Math.pow(FL, 2) * (inP - (FF * vaporPressure));
     if (!isFinite(chokedThreshold) || chokedThreshold < 0) {
         console.warn("Invalid choked threshold calculation.");
@@ -652,7 +665,7 @@ function isChokedFlow(FF) {
  * Calculates required Cv for choked (critical) liquid flow.
  *
  * Purpose & formula:
- *   For choked liquid flow ISA gives:
+ *   For choked liquid flow gives:
  *     C_v = (Q / (N1 * F_L)) * sqrt( G_f / (P1 - F_F * P_v) )
  *   where:
  *     - Q is flowrate (gpm)
@@ -721,7 +734,7 @@ function calculateC_subcritical() {
         return null;
     }
 
-    // Standard ISA subcritical Cv expression
+    // Standard subcritical Cv expression
     const Ci = (Q / numericalConstants.N1) * Math.sqrt((relDensity) / deltaP);
     return Ci;
 }
@@ -736,7 +749,7 @@ function calculateC_subcritical() {
  * Calculates the valve Reynolds number (Rev) used to determine viscosity correction needs.
  *
  * Purpose:
- *   Rev is an empirical valve-specific Reynolds-like number defined in ISA to decide
+ *   Rev is an empirical valve-specific Reynolds-like number defined to decide
  *   whether the flow is turbulent or whether viscosity corrections (FR) must be applied.
  *
  * Formula:
@@ -765,13 +778,12 @@ function calculateValveReynoldsRev(Ci, FLP, d) {
 
     // Get the variable parameters
     const FL = FLP;
-    const D = d;
 
     // Pick the viscosity from fluid data (expected as cP)
     let v = UserInputs.getProperty("getSelectedFluid.viscosity");
 
     // Validate geometry & fluid inputs
-    if (!D || D <= 0) {
+    if (!d || d <= 0) {
         console.warn("Invalid pipe diameter for Rev calculation.");
         return null;
     }
@@ -785,7 +797,7 @@ function calculateValveReynoldsRev(Ci, FLP, d) {
     const eq1 = (numericalConstants.N4 * FD * Q) / (v * Math.sqrt(Ci * FL));
 
     // inside = 1 + (FL^2 * Ci^2) / (N2 * D^4)
-    const inside = (Math.pow(FL, 2) * Math.pow(Ci, 2)) / (numericalConstants.N2 * Math.pow(D, 4)) + 1;
+    const inside = (Math.pow(FL, 2) * Math.pow(Ci, 2)) / (numericalConstants.N2 * Math.pow(d, 4)) + 1;
     const eq2 = Math.pow(inside, 0.25);
 
     const Rev = eq1 * eq2;
@@ -848,7 +860,6 @@ function calculateFpFactors(Cv, valveSize, pipeSize, FL) {
 
 /**
  * Determines which set of viscosity correction (FR) formulas to use based on valve size.
- * This is a check specified by the ANSI/ISA standard.
  * @param {number} C - The calculated flow coefficient (Cv).
  * @returns {boolean} `true` to use one set of formulas, `false` for the other.
  */
@@ -856,7 +867,7 @@ function calculateFpFactors(Cv, valveSize, pipeSize, FL) {
  * Decide which FR formula branch to use (full-range vs restricted-range).
  *
  * Purpose:
- *   ISA uses a boundary (Cv / D^2 comparison) to choose between two FR families.
+ *   Uses a boundary (Cv / D^2 comparison) to choose between two FR families.
  *   This helper implements that check using your constant scaling.
  *
  * Returns:
@@ -976,6 +987,280 @@ function calculateFRifYes(Ci, Rev, d_pipe, FLP) {
 }
 
 //------------------------------------------------------------------------------------
+// SECTION 5.5: PRESSURE-TEMPERATURE RATINGS (ASME B16.34 - Group 1.1 WCB)
+//------------------------------------------------------------------------------------
+/**
+ * Pressure-Temperature Ratings for ASTM A216 WCB (Standard Class).
+ * Source: ASME B16.34-2017, Table 2-1.1
+ * Units: Temp in °F, Pressure in psig
+ */
+const WCB_Ratings = {
+    // Temperature points corresponding to the pressure arrays below
+    tempPoints: [-20, 100, 200, 300, 400, 500, 600, 650, 700, 750, 800],
+    
+    classes: {
+        150:  [285, 285, 260, 230, 200, 170, 140, 125, 110, 95, 80],
+        300:  [740, 740, 675, 655, 635, 600, 550, 535, 535, 505, 410],
+        600:  [1480, 1480, 1350, 1315, 1270, 1200, 1095, 1075, 1065, 1010, 825],
+        
+        // High Pressure Classes
+        900:  [2220, 2220, 2025, 1970, 1900, 1795, 1640, 1610, 1600, 1510, 1235],
+        1500: [3705, 3705, 3375, 3280, 3170, 2995, 2735, 2685, 2665, 2520, 2060],
+        2500: [6170, 6170, 5625, 5470, 5280, 4990, 4560, 4475, 4440, 4200, 3430],
+        4500: [11110, 11110, 10120, 9845, 9505, 8980, 8210, 8055, 7990, 7560, 6170]
+    }
+};
+
+/**
+ * Calculates the Maximum Allowable Working Pressure (MAWP) for WCB steel
+ * at a specific temperature and pressure class using linear interpolation.
+ * @param {number} tempF - Temperature in Fahrenheit
+ * @param {number} classRating - ANSI Class (150, 300, 600...)
+ * @returns {number} MAWP in psig
+ */
+function getMaxPressureWCB(tempF, classRating) {
+    if (!WCB_Ratings.classes[classRating]) return 99999; // Unknown class, assume safe
+
+    // Clamp temp to data limits
+    const temps = WCB_Ratings.tempPoints;
+    const pressures = WCB_Ratings.classes[classRating];
+    
+    // Case 1: Below min temp
+    if (tempF <= temps[0]) return pressures[0];
+
+    // Case 2: Above max temp (Use last known - unsafe to extrapolate up)
+    if (tempF >= temps[temps.length - 1]) return pressures[pressures.length - 1];
+
+    // Case 3: Interpolate
+    for (let i = 0; i < temps.length - 1; i++) {
+        if (tempF >= temps[i] && tempF <= temps[i+1]) {
+            const t1 = temps[i];
+            const t2 = temps[i+1];
+            const p1 = pressures[i];
+            const p2 = pressures[i+1];
+            
+            // Linear Interpolation: P = P1 + (T - T1) * (P2 - P1) / (T2 - T1)
+            return p1 + (tempF - t1) * (p2 - p1) / (t2 - t1);
+        }
+    }
+    return pressures[0];
+}
+
+/**
+ * Validates if the valve class is sufficient for the process pressure
+ * considering a safety factor (derating).
+ */
+function checkPressureClass(valve, maxInletPressure, tempF) {
+    // If we're passing a specific class (number) or object with pressureClass property
+    const rating = typeof valve === 'number' ? valve : valve.pressureClass;
+    
+    if (!rating) return { pass: true, limit: 0, rated: 0 }; // Pass if no class defined (legacy data)
+
+    // 1. Get Base ASME Rating
+    const asmeLimit = getMaxPressureWCB(tempF, rating);
+
+    // 2. Apply 75% Safety Factor
+    const safeLimit = asmeLimit * 0.75;
+
+    // 3. Compare
+    const pass = maxInletPressure <= safeLimit;
+
+    return { pass, limit: safeLimit, rated: asmeLimit };
+}
+
+/**
+ * SENAI-Derived Flow Characteristic Recommender
+ * Strictly follows the logic table provided in the prompt.
+ * * @param {object} process - { qMin, qMax, dpMin, dpMax }
+ * @param {boolean} isChoked - Choked status from sizing engine
+ * @returns {object} { type: string, reason: string }
+ */
+function recommendSenaiCharacteristic(process, isChoked) {
+    
+    // --- 1. Validation ---
+    if (!process.qMin || !process.qMax || !process.dpMin || !process.dpMax || process.dpMin <= 0) {
+        return {
+            type: "Equal Percentage",
+            reason: "Insufficient process data. Defaulting to Equal Percentage (Safety)."
+        };
+    }
+
+    // --- 2. Calculate Indicators ---
+    const dpRatio = process.dpMax / process.dpMin;
+    const flowRatio = process.qMax / process.qMin;
+
+    // --- 3. PRIORITY 1: CRITICAL OVERRIDE ---
+    if (isChoked) {
+        return {
+            type: "Equal Percentage",
+            reason: "Critical Override: Choked flow detected. Equal Percentage selected for stability."
+        };
+    }
+
+    // --- 4. PRIORITY 2: STRONGLY INCREASING DP (> 2.0) ---
+    if (dpRatio > 2.0) {
+        if (flowRatio > 3.0) {
+            return {
+                type: "Quick Opening",
+                reason: `Strongly increasing ΔP (Ratio: ${dpRatio.toFixed(2)}) with large flow range. Quick Opening matches gain.`
+            };
+        } else {
+            return {
+                type: "Equal Percentage",
+                reason: `Strongly increasing ΔP (Ratio: ${dpRatio.toFixed(2)}) but small flow range. Defaulting to Eq%.`
+            };
+        }
+    }
+
+    // --- 5. PRIORITY 3: APPROXIMATELY CONSTANT DP (0.8 to 1.25) ---
+    if (dpRatio >= 0.8 && dpRatio <= 1.25) {
+        return {
+            type: "Linear",
+            reason: `Approximately constant ΔP (Ratio: ${dpRatio.toFixed(2)}). Linear trim matches constant system gain.`
+        };
+    }
+
+    // --- 6. PRIORITY 4: VARIABLE DP (Decreasing < 0.8 OR Increasing 1.25-2.0) ---
+    let trend = dpRatio < 0.8 ? "Decreasing" : "Increasing";
+    return {
+        type: "Equal Percentage",
+        reason: `Variable ΔP (${trend}, Ratio: ${dpRatio.toFixed(2)}). Equal Percentage compensates for gain changes.`
+    };
+}
+
+/**
+ * Calculates Hydrodynamic Noise using the SENAI/Masoneilan Method.
+ * Formula: SPL = SPL_dP + SPL_delta - SPL_C
+ * * @param {number} Cv - Valve Cv
+ * @param {number} P1 - Inlet Pressure (psia)
+ * @param {number} P2 - Outlet Pressure (psia)
+ * @param {number} Pv - Vapor Pressure (psia)
+ * @param {number} FL - Liquid Pressure Recovery Factor
+ * @param {number} d_pipe - Pipe Diameter (inches)
+ * @returns {number} Noise in dBA
+ */
+function calculateNoiseSenai(Cv, P1, P2, Pv, FL, d_pipe) {
+    // 0. Safety Checks
+    if (Cv <= 0 || P1 <= P2) return 0;
+    
+    // 1. Define Variables
+    const dP = P1 - P2;
+    const P1_Pv = P1 - Pv;
+    const P2_Pv = P2 - Pv;
+    
+    // Critical pressure drop where cavitation starts (approximate)
+    // In this method, dP_cav is roughly related to FL^2
+    const dP_choked = FL * FL * (P1 - Pv);
+    
+    // Kc (Cavitation Index for this method)
+    // Low Kc means high cavitation risk. High Kc means safe.
+    // Kc = (P1 - Pv) / dP  <-- Standard ISA definition
+    // Note: The prompt implies a comparison. Let's calculate the ratio xF.
+    const xF = dP / (P1 - Pv); // Operating pressure ratio
+    const xF_limit = 0.9 * (FL * FL); // The limit mentioned in the prompt (0.9 FL^2)
+
+    // --- 2. Calculate SPL_delta (Fig. 56) ---
+    // Represents Base Energy function of (P2 - Pv) and Cv
+    // Approx: 10*log(Cv) + 20*log(P2-Pv) + Constant
+    // We assume P2-Pv must be > 0.1 to avoid log(0) errors
+    const safe_P2_Pv = Math.max(0.1, P2_Pv);
+    let SPL_delta = 10 * Math.log10(Cv) + 20 * Math.log10(safe_P2_Pv) + 38;
+
+    // --- 3. Calculate SPL_dP (Fig. 55) ---
+    // Represents Cavitation Intensity. 
+    // It rises as dP approaches dP_choked.
+    // We model this curve as a ratio of dP/dP_choked.
+    let ratio = dP / dP_choked;
+    let SPL_dP = 0;
+    
+    if (ratio < 0.5) {
+        // Linear rise in low turbulence
+        SPL_dP = 10 * ratio; 
+    } else if (ratio < 1.0) {
+        // Exponential rise as we hit cavitation
+        SPL_dP = 10 + 40 * Math.pow((ratio - 0.5) * 2, 2);
+    } else {
+        // Choked / Full Cavitation (Saturation plateau)
+        SPL_dP = 50; 
+    }
+
+    // --- 4. Calculate SPL_C (Fig. 57) ---
+    // "O valor de SPLC pode ser desprezado caso KC seja superior a 0,9 FL^2"
+    // Note: Inverted logic for xF. 
+    // xF is (dP / P1-Pv). 0.9 FL^2 is the limit. 
+    // If xF < 0.9 FL^2, we are SAFE (No Cavitation). 
+    // If xF > 0.9 FL^2, we are in CAVITATION.
+    
+    let SPL_C = 0;
+    
+    // If we are in the "Safe Zone" (dP is small compared to limit), apply attenuation
+    if (xF < xF_limit) {
+         // Pipe wall attenuation estimate (Schedule 40)
+         // Thicker pipes reduce noise.
+         // Approx: 10dB reduction per inch of thickness (simplified)
+         // We use a simplified curve: 30dB baseline - size factor
+         SPL_C = 30 - (10 * Math.log10(d_pipe));
+    } else {
+         // In cavitation (High Noise), SPL_C is ignored (0), meaning full noise transmission
+         SPL_C = 0;
+    }
+
+    // --- 5. Final Sum ---
+    // SPL = SPL_dP + SPL_delta - SPL_C
+    let SPL = SPL_dP + SPL_delta - SPL_C;
+
+    // Clamp to realistic bounds
+    if (SPL < 30) SPL = 30;
+    if (SPL > 130) SPL = 130;
+
+    return parseFloat(SPL.toFixed(1));
+}
+
+/**
+ * Calculates ISA-RP75.23 Cavitation Index (Sigma)
+ * and determines consequences based on specific user thresholds.
+ * Formula: Sigma = (P1 - Pv) / (P1 - P2)
+ */
+function calculateCavitationSigma(P1, P2, Pv) {
+    const dP = P1 - P2;
+    // Safety check for invalid dP
+    if (dP <= 0) return { sigma: 999, severity: "Safe", consequence: "No Risk", color: "#34d399" };
+
+    const sigma = (P1 - Pv) / dP;
+    const sigmaVal = parseFloat(sigma.toFixed(2));
+
+    let result = {
+        sigma: sigmaVal,
+        severity: "Safe",
+        consequence: "No Risk of Cavitation",
+        color: "#34d399" // Green
+    };
+
+    if (sigmaVal <= 1.0) {
+        result.severity = "Flashing";
+        result.consequence = "Flashing is occurring.";
+        result.color = "#7f1d1d"; // Dark Red / Purple
+    } 
+    else if (sigmaVal <= 1.5) {
+        result.severity = "Severe";
+        result.consequence = "Potential for severe cavitation.";
+        result.color = "#ef4444"; // Red
+    } 
+    else if (sigmaVal <= 1.7) {
+        result.severity = "Moderate";
+        result.consequence = "Some cavitation control required.";
+        result.color = "#f97316"; // Orange
+    } 
+    else if (sigmaVal <= 2.0) {
+        result.severity = "Incipient";
+        result.consequence = "No cavitation control required (Hardened trim recommended).";
+        result.color = "#eab308"; // Yellow
+    }
+
+    return result;
+}
+
+//------------------------------------------------------------------------------------
 // SECTION 6: MAIN SIZING ORCHESTRATOR
 //------------------------------------------------------------------------------------
 
@@ -985,20 +1270,21 @@ function calculateFRifYes(Ci, Rev, d_pipe, FLP) {
  * @param {number} valveSize - The nominal size (d) of the valve being tested.
  * @returns {object|null} { Cv, Re, iterations, choked } or null on error
  */
-function valveSizing(valveSize) 
+function valveSizing(valveSize, overrideQ, overrideP1, overrideP2) 
 {
     const EPS = 0.0001;      // Convergence tolerance
     const MAX_ITERS = 20;   // Max iterations for Cv and FR
 
     const pipeSize = UserInputs.getProperty("getInputs.pipeDiameter");
     const FL = UserInputs.getProperty("getSelectedValve.Fl"); // Generic or specific FL
-    const Q = UserInputs.getProperty("getInputs.flowRate");
     const SG = UserInputs.getProperty("getSelectedFluid.relativeDensity");
     const N1 = numericalConstants.N1;
 
-    // Get pressures
-    const inP = UserInputs.getProperty("getInputs.inletPressure");
-    const outP = UserInputs.getProperty("getInputs.outletPressure");
+    // Use overrides if provided, otherwise standard inputs
+    const Q = (overrideQ !== undefined) ? overrideQ : UserInputs.getProperty("getInputs.flowRate");
+    const inP = (overrideP1 !== undefined) ? overrideP1 : UserInputs.getProperty("getInputs.inletPressure");
+    const outP = (overrideP2 !== undefined) ? overrideP2 : UserInputs.getProperty("getInputs.outletPressure");
+
     const actualDP = inP - outP;
     if (actualDP <= 0) {
         console.warn("deltaP must be > 0.");
@@ -1049,6 +1335,11 @@ function valveSizing(valveSize)
         return null;
     }
 
+    if (Cv_initial >= 10000) {
+        console.warn("Pipe undersized.");
+        return null;
+    }
+
     // --- Step 3: Reynolds number with initial Cv ---
     // We must pass FLP and valveSize to the Reynolds number calc
     let Re = calculateValveReynoldsRev(Cv_initial, FLP, valveSize);
@@ -1091,106 +1382,337 @@ function valveSizing(valveSize)
 //------------------------------------------------------------------------------------
 // SECTION 7: CALCULATION AND RECOMMENDATION ORCHESTRATOR
 //------------------------------------------------------------------------------------
+/**
+ * Calculates Valve Opening % based on Required Cv using Piecewise Linear Interpolation.
+ */
+function calculateOpeningFromCv(requiredCv, cvCurve) {
+    if (requiredCv <= 0) return 0;
+    const maxCv = cvCurve[cvCurve.length - 1];
+    
+    // Extrapolate if over max (to show >100%)
+    if (requiredCv >= maxCv) {
+        return 100 * (requiredCv / maxCv);
+    }
+
+    const fullCvCurve = [0, ...cvCurve]; 
+    const fullOpeningCurve = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+    for (let i = 0; i < fullCvCurve.length - 1; i++) {
+        const cvLow = fullCvCurve[i];
+        const cvHigh = fullCvCurve[i+1];
+
+        if (requiredCv >= cvLow && requiredCv <= cvHigh) {
+            const percentLow = fullOpeningCurve[i];
+            const percentHigh = fullOpeningCurve[i+1];
+            const fraction = (requiredCv - cvLow) / (cvHigh - cvLow);
+            return percentLow + (fraction * (percentHigh - percentLow));
+        }
+    }
+    return 100;
+}
 
 /**
- * Orchestrates the full 2-stage calculation based on new requirements:
- * 1. Gets an initial Cv with generic valve data.
- * 2. Finds matching valves (by type) and all sizes.
- * 3. Validates each and ranks them by "Fit" (Ideal, Acceptable).
- * @returns {Array} An array of recommendation objects.
- */
-/**
- * Orchestrates the full 2-stage calculation.
- * @returns {object} An object: { recommendations, initialResult }
+ * Orchestrates the full 3-point calculation (Min, Normal, Max)
+ * and determines process requirements.
  */
 function calculateAndRecommend() 
 {
-    // --- STEP 1: Initial Sizing (using generic Fl/Fd) ---
-    const genericFl = UserInputs.getProperty("getSelectedValve.Fl");
-    const genericFd = UserInputs.getProperty("getSelectedValve.Fd");
-    const pipeSize  = UserInputs.getProperty("getInputs.pipeDiameter");
-    const initialResult = valveSizing(pipeSize);
-    
-    // Handle initial calculation failure
-    if (initialResult == null) {
-        return { recommendations: [], initialResult: null };
-    }
-    
-    const initialCv = initialResult.Cv;
     const inputs = UserInputs.getInputs();
+    const SG = UserInputs.getProperty("getSelectedFluid.relativeDensity");
+    const Pv = UserInputs.getProperty("getSelectedFluid.Pv"); 
+    const N1 = numericalConstants.N1;
 
-    // --- STEP 2: Filter Database (by Type Only) ---
-    const candidates = valveDatabase.filter(valve => 
-        valve.type === inputs.valveType
-    );
-
-    if (candidates.length === 0) {
-        // No candidates of this type, but we still have the initial Cv
-        return { recommendations: [], initialResult: initialResult };
+    // --- 0. SAFETY CHECK: INLET FLASHING ---
+    if (inputs.inletPressure <= Pv) {
+        return { 
+            recommendations: [], 
+            processInfo: {
+                error: true,
+                errorMessage: "CRITICAL: Inlet Pressure is below Vapor Pressure. Fluid is flashing/boiling at the inlet.",
+                baseCvOp: 0, baseCvMin: 0, baseCvMax: 0,
+                preferredChar: "Error", charReason: "Check Process Conditions",
+                minProcessClass: "N/A", sigma: 0, sigmaSeverity: "N/A", sigmaColor: "#ef4444", sigmaLabel: "N/A"
+            } 
+        };
     }
 
-    // --- STEP 3: Validate Each Candidate ---
-    let recommendations = [];
+    // --- 1. REFERENCE CALCULATION ---
+    const calcSimpleCv = (Q, P1, P2) => {
+        const dP = P1 - P2;
+        if (dP <= 0 || Q <= 0) return 0;
+        return (Q / N1) * Math.sqrt(SG / dP);
+    };
+
+    const baseCvOp = calcSimpleCv(inputs.flowRate, inputs.inletPressure, inputs.outletPressure);
+    const baseCvMin = calcSimpleCv(inputs.flowRateMin, inputs.inletPressureMin, inputs.outletPressureMin);
+    const baseCvMax = calcSimpleCv(inputs.flowRateMax, inputs.inletPressureMax, inputs.outletPressureMax);
+
+    // --- 2. PROCESS ANALYSIS ---
+    const processSigmaData = calculateCavitationSigma(inputs.inletPressure, inputs.outletPressure, Pv);
+
+    const standardClasses = [150, 300, 600, 900, 1500, 2500, 4500];
+    let minProcessClass = 4500; // Default high
+    const tempInC = UserInputs.getProperty("getInputs.temperature");
+    const tempF = (tempInC * 9/5) + 32;
+    const pMaxProcess = inputs.inletPressureMax;
+
+    for (const cls of standardClasses) {
+        const check = checkPressureClass(cls, pMaxProcess, tempF);
+        if (check.pass) { minProcessClass = cls; break; }
+    }
+
+    // --- 3. SENAI LOGIC ---
+    const resBaseMax = valveSizing(inputs.pipeDiameter, inputs.flowRateMax, inputs.inletPressureMax, inputs.outletPressureMax);
+    const isChokedSafety = resBaseMax ? resBaseMax.choked : false;
+
+    const processData = {
+        qMin: inputs.flowRateMin, qMax: inputs.flowRateMax,
+        dpMin: inputs.inletPressureMin - inputs.outletPressureMin, 
+        dpMax: inputs.inletPressureMax - inputs.outletPressureMax  
+    };
+    const senaiRec = recommendSenaiCharacteristic(processData, isChokedSafety);
+    let preferredChar = senaiRec.type;
+    let charReason = senaiRec.reason;
     
-    for (const candidate of candidates) {
-        // ... (your existing loop to validate candidates is perfect) ...
-        UserInputs.setValveProperty("Fl", candidate.Fl);
-        UserInputs.setValveProperty("Fd", candidate.Fd);
+    // --- SCORING HELPER FUNCTION ---
+    const calculateScore = (valve, opData) => {
+        let score = 0;
 
-        const validatedResult = valveSizing(candidate.size);
+        // 1. Operating Point (40 pts) - Target: 60-75%
+        const open = opData.openOp;
+        let dist = 0;
+        if (open < 60) dist = 60 - open;
+        else if (open > 75) dist = open - 75;
         
-        if (validatedResult == null) continue; 
-        const finalCv = validatedResult.Cv;
-        
-        if (candidate.ratedCv < finalCv) continue; 
-        
-        const opening = (finalCv / candidate.ratedCv) * 100;
-
-        let fit;
-        if (opening >= 30 && opening <= 70) {
-            fit = "Ideal";
-        } else if (opening >= 20 && opening <= 85) {
-            fit = "Acceptable";
-        } else {
-            fit = "Unsuitable"; 
+        if (dist === 0) score += 40;
+        else {
+            // Deduct 0.8 pts per % deviation. 
+            // 10% open (dist 50) -> Score 0. 85% open (dist 10) -> Score 32.
+            score += Math.max(0, 40 - (dist * 0.8));
         }
 
-        recommendations.push({
-            name: `${candidate.manufacturer} ${candidate.model}`,
-            size: candidate.size,
-            validatedCv: finalCv,
-            regime: validatedResult.choked ? 'Choked' : 'Subcritical',
-            openingPercent: opening,
-            fit: fit,
-            ratedCv: candidate.ratedCv
+        // 2. Characteristic (20 pts)
+        if (opData.isPreferredChar) score += 20;
+        else score += 10; // Fallback (e.g. Eq% used for Linear)
+
+        // 3. Noise (15 pts) - Target < 75 dBA
+        const noise = opData.noise;
+        if (noise <= 75) score += 15;
+        else if (noise >= 85) score += 0;
+        else {
+            // Linear drop between 75 and 85
+            score += 15 - ((noise - 75) * 1.5);
+        }
+
+        // 4. Rangeability (10 pts) - Target > 50:1
+        const ratio = opData.rangeability;
+        if (ratio >= 50) score += 10;
+        else if (ratio <= 10) score += 0;
+        else {
+            score += ((ratio - 10) / 40) * 10;
+        }
+
+        // 5. Class Efficiency (10 pts)
+        const classes = [150, 300, 600, 900, 1500, 2500, 4500];
+        const reqIdx = classes.indexOf(minProcessClass);
+        const valIdx = classes.indexOf(valve.pressureClass);
+        
+        if (valIdx !== -1 && reqIdx !== -1) {
+            const diff = valIdx - reqIdx;
+            if (diff === 0) score += 10;
+            else if (diff === 1) score += 8;
+            else score += 2; // Massive over-rating
+        } else {
+            score += 10; // Custom/Unknown
+        }
+
+        // 6. Size Match (5 pts)
+        // Standard pipe sizes to determine steps
+        const sizes = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24];
+        const pIdx = sizes.indexOf(inputs.pipeDiameter);
+        const vIdx = sizes.indexOf(valve.size);
+        
+        if (pIdx !== -1 && vIdx !== -1) {
+            const diff = pIdx - vIdx;
+            // Exact match or 1 size smaller is ideal (Max points)
+            if (diff === 0 || diff === 1) score += 5;
+            else score += 0; // 2+ sizes smaller is penalized
+        } else {
+            // Fallback for non-standard sizes
+            if (valve.size >= inputs.pipeDiameter * 0.6) score += 5;
+        }
+
+        return score;
+    };
+
+    let recommendations = [];
+
+    // ============================================================
+    // BRANCH A: CUSTOM VALVE ANALYSIS
+    // ============================================================
+    if (inputs.valveType === 99) {
+        // [Same logic as before, just added score placeholder]
+        const customCandidate = {
+            manufacturer: "User Defined", model: "Custom Analysis",
+            size: inputs.customValveSize || inputs.pipeDiameter, 
+            Fl: inputs.customFl, Fd: inputs.customFd,            
+            pressureClass: "N/A", characteristic: "User Defined"
+        };
+
+        UserInputs.setValveProperty("Fl", customCandidate.Fl);
+        UserInputs.setValveProperty("Fd", customCandidate.Fd);
+
+        const resOp = valveSizing(customCandidate.size, inputs.flowRate, inputs.inletPressure, inputs.outletPressure);
+        let resMin = null, resMax = null;
+        try {
+            resMin = valveSizing(customCandidate.size, inputs.flowRateMin, inputs.inletPressureMin, inputs.outletPressureMin);
+            resMax = valveSizing(customCandidate.size, inputs.flowRateMax, inputs.inletPressureMax, inputs.outletPressureMax);
+        } catch(e) {}
+
+        if (resOp) {
+             const noiseVal = calculateNoiseSenai(resOp.Cv, inputs.inletPressure, inputs.outletPressure, Pv, customCandidate.Fl, customCandidate.size);
+            let processTurndown = (resMin && resMax && resMin.Cv > 0) ? (resMax.Cv / resMin.Cv).toFixed(2) : "N/A";
+            
+            recommendations.push({
+                name: "Custom Valve Analysis",
+                size: customCandidate.size,
+                ratedCv: 0, characteristic: "N/A", pressureClass: "N/A",
+                noise: noiseVal,
+                sigma: processSigmaData.sigma, cavSeverity: processSigmaData.severity, cavConsequence: processSigmaData.consequence, cavColor: processSigmaData.color,
+                cvOp: resOp.Cv, cvMin: resMin ? resMin.Cv : 0, cvMax: resMax ? resMax.Cv : 0,
+                openOp: 0, openMin: 0, openMax: 0, 
+                fit: "Custom", score: 100, // Custom always 100
+                isPreferredChar: false, turndownPass: true,
+                valveRangeability: 0, processTurndown: processTurndown,
+                regime: resOp.choked ? "Choked" : "Non-Choked"
+            });
+        }
+    }
+    // ============================================================
+    // BRANCH B: STANDARD DATABASE SEARCH
+    // ============================================================
+    else {
+        const originalFl = UserInputs.getProperty("getSelectedValve.Fl");
+        const originalFd = UserInputs.getProperty("getSelectedValve.Fd");
+        const candidates = typeof valveDatabase !== 'undefined' ? valveDatabase.filter(valve => valve.type === inputs.valveType) : [];
+
+        for (const originalCandidate of candidates) {
+            let candidate = { ...originalCandidate };
+
+            // A. Basic Geometry Filters
+            if (candidate.size > inputs.pipeDiameter) continue; 
+            if (candidate.ratedCv < (baseCvMax * 0.90)) continue; 
+
+            // B. Flow Characteristic Filtering
+            const valveChar = candidate.characteristic || "Linear"; 
+            if (preferredChar === "Equal Percentage") {
+                if (valveChar !== "Equal Percentage") continue;
+            } else {
+                if (valveChar !== preferredChar && valveChar !== "Equal Percentage") continue;
+            }
+
+            // C. Pressure Class Filter
+            let selectedClass = null;
+            let availableClasses = [];
+            if (candidate.pressureClasses && Array.isArray(candidate.pressureClasses)) availableClasses = candidate.pressureClasses;
+            else if (candidate.pressureClass) availableClasses = [candidate.pressureClass];
+            
+            availableClasses.sort((a, b) => a - b);
+            for (const cls of availableClasses) {
+                const check = checkPressureClass(cls, inputs.inletPressureMax, tempF);
+                if (check.pass) { selectedClass = cls; break; }
+            }
+            if (selectedClass === null) continue; 
+            candidate.pressureClass = selectedClass;
+
+            // D. Run Sizing
+            UserInputs.setValveProperty("Fl", candidate.Fl);
+            UserInputs.setValveProperty("Fd", candidate.Fd);
+
+            const resOp = valveSizing(candidate.size, inputs.flowRate, inputs.inletPressure, inputs.outletPressure);
+            if (!resOp) continue;
+            const resMin = valveSizing(candidate.size, inputs.flowRateMin, inputs.inletPressureMin, inputs.outletPressureMin);
+            if (!resMin) continue;
+            const resMax = valveSizing(candidate.size, inputs.flowRateMax, inputs.inletPressureMax, inputs.outletPressureMax);
+            if (!resMax) continue;
+
+            const noiseVal = calculateNoiseSenai(resOp.Cv, inputs.inletPressure, inputs.outletPressure, Pv, candidate.Fl, candidate.size);
+
+            const getOpen = (cv, val) => {
+                if (val.cvCurve && val.cvCurve.length === 10) return calculateOpeningFromCv(cv, val.cvCurve);
+                return (cv / val.ratedCv) * 100;
+            };
+            const openOp = getOpen(resOp.Cv, candidate);
+            const openMin = getOpen(resMin.Cv, candidate);
+            const openMax = getOpen(resMax.Cv, candidate);
+
+            // E. Fit Filtering
+            let fit = "Marginal";
+            if (openOp > 0 && openMax <= 100) {
+                if (openOp >= 50 && openOp <= 80 && openMax < 90 && openMin > 10) fit = "Ideal";
+                else if (openOp >= 10 && openOp <= 90 && openMax <= 95) fit = "Acceptable";
+            } else {
+                fit = "Invalid"; 
+            }
+            if (fit === "Invalid") continue;
+
+            // F. Process Data
+            const processTurndown = resMax.Cv / resMin.Cv;
+            let cvAt90 = 0, cvAt10 = 0;
+            if (candidate.cvCurve && candidate.cvCurve.length === 10) {
+                cvAt10 = candidate.cvCurve[0]; cvAt90 = candidate.cvCurve[8]; 
+            } else {
+                cvAt10 = candidate.ratedCv * 0.1; cvAt90 = candidate.ratedCv * 0.9;
+            }
+            const valveRangeability = cvAt90 / cvAt10;
+            const turndownPass = (valveRangeability >= processTurndown);
+            const isPreferredChar = (candidate.characteristic === preferredChar);
+
+            // G. Calculate Score
+            const opData = {
+                openOp, noise: noiseVal, 
+                rangeability: valveRangeability, 
+                isPreferredChar
+            };
+            const score = calculateScore(candidate, opData);
+
+            recommendations.push({
+                name: `${candidate.manufacturer} ${candidate.model}`,
+                size: candidate.size, ratedCv: candidate.ratedCv,
+                characteristic: candidate.characteristic || "Linear",
+                pressureClass: candidate.pressureClass,
+                noise: noiseVal,
+                sigma: processSigmaData.sigma, cavSeverity: processSigmaData.severity, cavConsequence: processSigmaData.consequence, cavColor: processSigmaData.color,
+                cvOp: resOp.Cv, cvMin: resMin.Cv, cvMax: resMax.Cv,
+                openOp: openOp, openMin: openMin, openMax: openMax,
+                fit: fit, score: Math.round(score), // Save Score
+                isPreferredChar: isPreferredChar, turndownPass: turndownPass,
+                valveRangeability: valveRangeability, processTurndown: processTurndown.toFixed(2),
+                regime: resOp.choked ? "Choked" : "Non-Choked"
+            });
+        }
+
+        UserInputs.setValveProperty("Fl", originalFl);
+        UserInputs.setValveProperty("Fd", originalFd);
+
+        // H. Sort by Score
+        recommendations.sort((a, b) => {
+            // Safety first: Turndown Pass is mandatory
+            if (a.turndownPass && !b.turndownPass) return -1;
+            if (!a.turndownPass && b.turndownPass) return 1;
+            
+            // Then purely by Weighted Score
+            return b.score - a.score;
         });
     }
 
-    // Restore generic Fl/Fd
-    UserInputs.setValveProperty("Fl", genericFl);
-    UserInputs.setValveProperty("Fd", genericFd);
-
-    // --- STEP 4: Sort Recommendations ---
-    // ... (your existing sorting logic is perfect) ...
-    const getFitScore = (fit) => {
-        if (fit === "Ideal") return 1;
-        if (fit === "Acceptable") return 2;
-        return 3;
+    return { 
+        recommendations, 
+        processInfo: { 
+            preferredChar, charReason, baseCvOp, baseCvMin, baseCvMax, minProcessClass,
+            sigma: processSigmaData.sigma, sigmaSeverity: processSigmaData.severity, sigmaColor: processSigmaData.color, sigmaLabel: processSigmaData.consequence
+        } 
     };
-    recommendations.sort((a, b) => {
-        const fitScoreA = getFitScore(a.fit);
-        const fitScoreB = getFitScore(b.fit);
-        if (fitScoreA !== fitScoreB) {
-            return fitScoreA - fitScoreB; 
-        }
-        // If fit is the same, sort by closest to 70% open
-        const proximityA = Math.abs(a.openingPercent - 70);
-        const proximityB = Math.abs(b.openingPercent - 70);
-        return proximityA - proximityB;
-    });
-
-    // Return all data
-    return { recommendations, initialResult };
 }
 
 //------------------------------------------------------------------------------------
@@ -1201,7 +1723,7 @@ function calculateAndRecommend()
  * It also triggers necessary fluid property calculations (e.g., density, viscosity).
  */
 function parameterUpdate() {
-  // --- 1. Read DOM Elements (Values) ---
+  // --- 1. Read Standard DOM Elements ---
   const inletPressureEl = document.getElementById("inletPressure");
   const outletPressureEl = document.getElementById("outletPressure");
   const temperatureEl = document.getElementById("temperature");
@@ -1210,167 +1732,181 @@ function parameterUpdate() {
   const fluidTypeEl = document.getElementById("fluidType");
   const valveTypeEl = document.getElementById("valveType");
 
-  // --- 2. Read DOM Elements (Units) ---
+  // Main Units
   const flowRateUnit = document.getElementById("flowRateUnit").value;
   const inletPressureUnit = document.getElementById("inletPressureUnit").value;
   const outletPressureUnit = document.getElementById("outletPressureUnit").value;
   const pipeDiameterUnit = document.getElementById("pipeDiameterUnit").value;
   const temperatureUnit = document.getElementById("temperatureUnit").value;
 
-  // --- 3. Parse and Convert Main Inputs ---
-
-  // Get Inlet Pressure (convert to psig)
+  // --- 2. Convert Main Inputs ---
+  // Pressure: Convert to PSI Gauge, then add Atmospheric to get PSIA
   let inletPressure = parseFloat(inletPressureEl.value) || 0;
-  if (inletPressureUnit === "kpa_g") {
-    inletPressure *= conversionConstants.KPA_TO_PSI; // kPa(g) -> psig
-  }
-  // Convert from (psig) to (PSIa)
+  if (inletPressureUnit === "kpa_g") inletPressure *= conversionConstants.KPA_TO_PSI;
+  else if (inletPressureUnit === "bar_g") inletPressure *= conversionConstants.BAR_TO_PSI;
   inletPressure += P_ATMOSPHERIC_PSI;
 
-  // Get Outlet Pressure (convert to psig)
   let outletPressure = parseFloat(outletPressureEl.value) || 0;
-  if (outletPressureUnit === "kpa_g") {
-    outletPressure *= conversionConstants.KPA_TO_PSI; // kPa(g) -> psig
-  }
-  // Convert from (psig) to (PSIa)
+  if (outletPressureUnit === "kpa_g") outletPressure *= conversionConstants.KPA_TO_PSI;
+  else if (outletPressureUnit === "bar_g") outletPressure *= conversionConstants.BAR_TO_PSI;
   outletPressure += P_ATMOSPHERIC_PSI;
 
-  // Get Temperature (convert to °C)
+  // Temperature: Internal calculations use Celsius
   let temperature = parseFloat(temperatureEl.value) || 0;
-  if (temperatureUnit === "f") {
-    temperature = (temperature - 32) * 5 / 9; // F -> C
-  } else if (temperatureUnit === "k") {
-    temperature = temperature - 273.15; // K -> C
-  }
+  if (temperatureUnit === "f") temperature = (temperature - 32) * 5 / 9;
+  else if (temperatureUnit === "k") temperature = temperature - 273.15;
+  // If 'c', do nothing (already correct)
 
-  // Get Flow Rate (convert to GPM)
   let flowRate = parseFloat(flowRateEl.value) || 0;
-  if (flowRateUnit === "m3h") {
-    flowRate *= conversionConstants.M3H_TO_GPM; // m³/h -> GPM
-  }
+  if (flowRateUnit === "m3h") flowRate *= conversionConstants.M3H_TO_GPM;
 
-  // Get Pipe Diameter (convert to Inches)
   let pipeDiameter = parseFloat(pipeDiameterEl.value) || 0;
-  if (pipeDiameterUnit === "mm") {
-    pipeDiameter *= conversionConstants.MM_TO_IN; // mm -> in
-  }
+  if (pipeDiameterUnit === "mm") pipeDiameter *= conversionConstants.MM_TO_IN;
 
-  // Get types
-  const fluidType =
-    (fluidTypeEl
-      ? parseInt(fluidTypeEl.value, 10)
-      : UserInputs.Fluids.WATER) || UserInputs.Fluids.WATER;
+  const fluidType = (fluidTypeEl ? parseInt(fluidTypeEl.value, 10) : 0) || 0;
   const valveType = (valveTypeEl ? parseInt(valveTypeEl.value, 10) : 0) || 0;
 
-  // --- 4. Update State (Main Inputs) ---
-  UserInputs.setInput("inletPressure", inletPressure); // (PSIa)
-  UserInputs.setInput("outletPressure", outletPressure); // (PSIa)
-  UserInputs.setInput("temperature", temperature); // (C°)
-  UserInputs.setInput("flowRate", flowRate); // (GPM)
-  UserInputs.setInput("pipeDiameter", pipeDiameter); // (Inches)
+  UserInputs.setInput("inletPressure", inletPressure);
+  UserInputs.setInput("outletPressure", outletPressure);
+  UserInputs.setInput("temperature", temperature);
+  UserInputs.setInput("flowRate", flowRate);
+  UserInputs.setInput("pipeDiameter", pipeDiameter);
   UserInputs.setInput("fluidType", fluidType);
   UserInputs.setInput("valveType", valveType);
 
-  debugLog("Inputs (Converted to Standard Units):", {
-    inletPressure: inletPressure.toFixed(2),
-    outletPressure: outletPressure.toFixed(2),
-    temperature: temperature.toFixed(2),
-    flowRate: flowRate.toFixed(2),
-    pipeDiameter: pipeDiameter.toFixed(2),
-    fluidType,
-    valveType,
-  });
+  // ======================================================
+  // NEW: READ CUSTOM VALVE INPUTS (Direct Conversion)
+  // ======================================================
+  
+  const custSizeInput = document.getElementById("customValveSize");
+  const custSizeUnit = document.getElementById("customValveSizeUnit")?.value || "in";
+  let custSize;
 
-  // --- 5. Handle Fluid-Specific Properties ---
-  if (fluidType === UserInputs.Fluids.WATER) {
-    // Estimate the water vapor pressure according to the process temperature
-    const waterVaporPressure = estimateWaterVaporPressure(temperature);
-    UserInputs.setFluidProperty("Pv", waterVaporPressure);
+  // Logic: Only apply conversion if user actually typed a number.
+  if (custSizeInput && custSizeInput.value !== "") {
+      let rawVal = parseFloat(custSizeInput.value);
+      if (isNaN(rawVal)) rawVal = 0;
 
-    // Calculate the water specific gravity
-    calculateSpecificGravity();
-
-    // Estimate the water kinematic viscosity at process temperature
-    const estViscosity = estimateWaterKinematicViscosity_cSt(temperature);
-    UserInputs.setFluidProperty("viscosity", estViscosity);
-
-    debugLog("Fluid - Water (Calculated):", {
-      Pv: waterVaporPressure.toFixed(3),
-      SG: UserInputs.getProperty("getSelectedFluid.relativeDensity").toFixed(3),
-      visc_cSt: estViscosity.toFixed(3),
-    });
-
-  } else if (fluidType === UserInputs.Fluids.CUSTOM) {
-    // Get custom fluid elements
-    const PcEl = document.getElementById("Pc");
-    const PvEl = document.getElementById("Pv");
-    const rhoEl = document.getElementById("density");
-    const viscEl = document.getElementById("viscosity");
-
-    // Get custom fluid units
-    const pcUnit = document.getElementById("pcUnit").value;
-    const pvUnit = document.getElementById("pvUnit").value;
-    const densityUnit = document.getElementById("densityUnit").value;
-    const viscosityUnit = document.getElementById("viscosityUnit").value;
-
-    // Parse and convert custom inputs
-    let Pc = PcEl ? parseFloat(PcEl.value) || 0 : 0;
-    if (pcUnit === "kpa_a") {
-      Pc *= conversionConstants.KPA_TO_PSI; // kPa(a) -> psia
-    }
-
-    let Pv = PvEl ? parseFloat(PvEl.value) || 0 : 0;
-    if (pvUnit === "kpa_a") {
-      Pv *= conversionConstants.KPA_TO_PSI; // kPa(a) -> psia
-    }
-
-    let visc = viscEl ? parseFloat(viscEl.value) || 0 : 0;
-    if (viscosityUnit === "m2s") {
-      visc *= conversionConstants.M2S_TO_CST; // m²/s -> cSt
-    }
-
-    // Handle Density/SG
-    let rho_input = rhoEl ? parseFloat(rhoEl.value) || 0 : 0;
-    let specificGravity = 0;
-
-    if (densityUnit === "sg") {
-      specificGravity = rho_input;
-    } else {
-      // 'kgm3'
-      if (rho_input > 0) {
-        specificGravity = rho_input / D_REFERENCE_WATER;
+      if (custSizeUnit === "mm") {
+          // Direct mathematical conversion (e.g. 100mm -> 3.937")
+          custSize = rawVal * conversionConstants.MM_TO_IN;
+      } else {
+          custSize = rawVal;
       }
-    }
-    // Safety check
-    if (specificGravity <= 0) {
-      debugLog(
-        "FAIL: Invalid custom density/SG <= 0. Defaulting to 1.0 SG."
-      );
-      specificGravity = 1.0;
-    }
-
-    // Update custom fluid state
-    UserInputs.setFluidProperty("Pc", Pc);
-    UserInputs.setFluidProperty("Pv", Pv);
-    UserInputs.setFluidProperty("viscosity", visc);
-    UserInputs.setFluidProperty("relativeDensity", specificGravity);
-
-    // Print the calculated custom fluid inputs for debugging purposes
-    debugLog("Fluid - Custom (Converted to Standard Units):", {
-      Pc: Pc.toFixed(2),
-      Pv: Pv.toFixed(2),
-      specificGravity: specificGravity.toFixed(3),
-      visc: visc.toFixed(2),
-    });
+  } else {
+      // Fallback: Use Pipe Diameter (Already inches)
+      custSize = pipeDiameter;
   }
 
-  // Update the console log
-  console.log(
-    "Inputs Updated:",
-    UserInputs.getInputs(),
-    "Selected fluid:",
-    UserInputs.getSelectedFluid()
-  );
+  // --- UPDATED SECTION START: Read FL and FD directly from Inputs --- 
+  // We removed the switch statement here because the inputs are already 
+  // pre-filled by the event listener in DOMContentLoaded.
+  
+  const custFl = parseFloat(document.getElementById("customFl")?.value) || 0.9;
+  const custFd = parseFloat(document.getElementById("customFd")?.value) || 0.46; 
+
+  UserInputs.setInput("customValveSize", custSize);
+  UserInputs.setInput("customFl", custFl);
+  UserInputs.setInput("customFd", custFd);
+  // --- UPDATED SECTION END ---
+
+  // --- 3. Handle Advanced Inputs (Min/Max) ---
+  const useAdvanced = document.getElementById("useAdvancedInputs")?.checked;
+  let Q_min, P1_min, Q_max, P1_max, P2_min, P2_max;
+
+  if (useAdvanced) {
+      const qMinUnit = document.getElementById("flowRateMinUnit").value;
+      let rawQmin = parseFloat(document.getElementById("flowRateMin").value);
+      Q_min = (!isNaN(rawQmin)) ? ((qMinUnit === "m3h") ? rawQmin * conversionConstants.M3H_TO_GPM : rawQmin) : flowRate * 0.9;
+      
+      const pMinUnit = document.getElementById("inletPressureMinUnit").value;
+      let rawP1min = parseFloat(document.getElementById("inletPressureMin").value);
+      if (!isNaN(rawP1min)) {
+          if (pMinUnit === "kpa_g") rawP1min *= conversionConstants.KPA_TO_PSI;
+          else if (pMinUnit === "bar_g") rawP1min *= conversionConstants.BAR_TO_PSI;
+          P1_min = rawP1min + P_ATMOSPHERIC_PSI;
+      } else P1_min = inletPressure;
+
+      const p2MinUnit = document.getElementById("outletPressureMinUnit").value;
+      let rawP2min = parseFloat(document.getElementById("outletPressureMin").value);
+      if (!isNaN(rawP2min)) {
+          if (p2MinUnit === "kpa_g") rawP2min *= conversionConstants.KPA_TO_PSI;
+          else if (p2MinUnit === "bar_g") rawP2min *= conversionConstants.BAR_TO_PSI;
+          P2_min = rawP2min + P_ATMOSPHERIC_PSI;
+      } else P2_min = outletPressure;
+
+      const qMaxUnit = document.getElementById("flowRateMaxUnit").value;
+      let rawQmax = parseFloat(document.getElementById("flowRateMax").value);
+      Q_max = (!isNaN(rawQmax)) ? ((qMaxUnit === "m3h") ? rawQmax * conversionConstants.M3H_TO_GPM : rawQmax) : flowRate * 1.1;
+
+      const pMaxUnit = document.getElementById("inletPressureMaxUnit").value;
+      let rawP1max = parseFloat(document.getElementById("inletPressureMax").value);
+      if (!isNaN(rawP1max)) {
+          if (pMaxUnit === "kpa_g") rawP1max *= conversionConstants.KPA_TO_PSI;
+          else if (pMaxUnit === "bar_g") rawP1max *= conversionConstants.BAR_TO_PSI;
+          P1_max = rawP1max + P_ATMOSPHERIC_PSI;
+      } else P1_max = inletPressure;
+
+      const p2MaxUnit = document.getElementById("outletPressureMaxUnit").value;
+      let rawP2max = parseFloat(document.getElementById("outletPressureMax").value);
+      if (!isNaN(rawP2max)) {
+          if (p2MaxUnit === "kpa_g") rawP2max *= conversionConstants.KPA_TO_PSI;
+          else if (p2MaxUnit === "bar_g") rawP2max *= conversionConstants.BAR_TO_PSI;
+          P2_max = rawP2max + P_ATMOSPHERIC_PSI;
+      } else P2_max = outletPressure;
+
+  } else {
+      Q_min = flowRate * 0.9; P1_min = inletPressure; P2_min = outletPressure;
+      Q_max = flowRate * 1.1; P1_max = inletPressure; P2_max = outletPressure;
+  }
+
+  UserInputs.setInput("flowRateMin", Q_min);
+  UserInputs.setInput("inletPressureMin", P1_min);
+  UserInputs.setInput("outletPressureMin", P2_min);
+  UserInputs.setInput("flowRateMax", Q_max);
+  UserInputs.setInput("inletPressureMax", P1_max);
+  UserInputs.setInput("outletPressureMax", P2_max);
+
+  // --- 4. Fluid Properties ---
+  if (fluidType === UserInputs.Fluids.WATER) {
+    const waterVaporPressure = estimateWaterVaporPressure(temperature);
+    UserInputs.setFluidProperty("Pv", waterVaporPressure);
+    calculateSpecificGravity();
+    const estViscosity = estimateWaterKinematicViscosity_cSt(temperature);
+    UserInputs.setFluidProperty("viscosity", estViscosity);
+  } else if (fluidType === UserInputs.Fluids.CUSTOM) {
+      const PcEl = document.getElementById("Pc");
+      const PvEl = document.getElementById("Pv");
+      const rhoEl = document.getElementById("density");
+      const viscEl = document.getElementById("viscosity");
+      const pcUnit = document.getElementById("pcUnit").value;
+      const pvUnit = document.getElementById("pvUnit").value;
+      const densityUnit = document.getElementById("densityUnit").value;
+      const viscosityUnit = document.getElementById("viscosityUnit").value;
+
+      let Pc = PcEl ? parseFloat(PcEl.value) || 0 : 0;
+      if (pcUnit === "kpa_a") Pc *= conversionConstants.KPA_TO_PSI;
+      else if (pcUnit === "bar_a") Pc *= conversionConstants.BAR_TO_PSI;
+
+      let Pv = PvEl ? parseFloat(PvEl.value) || 0 : 0;
+      if (pvUnit === "kpa_a") Pv *= conversionConstants.KPA_TO_PSI;
+      else if (pvUnit === "bar_a") Pv *= conversionConstants.BAR_TO_PSI;
+
+      let visc = viscEl ? parseFloat(viscEl.value) || 0 : 0;
+      if (viscosityUnit === "m2s") visc *= conversionConstants.M2S_TO_CST;
+
+      let rho_input = rhoEl ? parseFloat(rhoEl.value) || 0 : 0;
+      let specificGravity = 1.0;
+      if (densityUnit === "sg") specificGravity = rho_input;
+      else if (rho_input > 0) specificGravity = rho_input / D_REFERENCE_WATER;
+
+      if (specificGravity <= 0) specificGravity = 1.0;
+
+      UserInputs.setFluidProperty("Pc", Pc);
+      UserInputs.setFluidProperty("Pv", Pv);
+      UserInputs.setFluidProperty("viscosity", visc);
+      UserInputs.setFluidProperty("relativeDensity", specificGravity);
+  }
 }
 
 /**
@@ -1379,89 +1915,251 @@ function parameterUpdate() {
 const calcBtn = document.getElementById("calculateBtn");
 if (calcBtn) {
   calcBtn.addEventListener("click", () => {
-
-    // Show the debug log container on the first click
-    if (DEBUG) {
+    // Show debug log container if debug is enabled
+    if (typeof DEBUG !== 'undefined' && DEBUG) {
       const debugContainer = document.getElementById("debugContainer");
-      if (debugContainer) {
-        debugContainer.style.display = "block";
-      }
+      if (debugContainer) debugContainer.style.display = "block";
     }
 
-    // Load all inputs
+    // 1. Update Parameters & Run Calculation
     parameterUpdate(); 
-
-    const { recommendations, initialResult } = calculateAndRecommend();
+    const { recommendations, processInfo } = calculateAndRecommend();
+    
+    // 2. Get DOM Elements
     const resultEl = document.getElementById("result");
+    const useAdvanced = document.getElementById("useAdvancedInputs")?.checked;
 
-    // --- 1. Handle Initial Calculation ---
-    if (initialResult == null) {
-      if (resultEl)
-        resultEl.innerHTML = `<div class="result-summary"><strong>Calculation failed.</strong><br>Check inputs and console for details.</div>`;
-      return;
+    // 3. Start building Result HTML
+    let resultHTML = "";
+    
+    // --- PART 1: PROCESS ANALYSIS ---
+    if (processInfo) {
+        if (processInfo.error) {
+             resultEl.innerHTML = `
+                <div style="background:rgba(239, 68, 68, 0.1); border-left:3px solid var(--accent-red); padding:12px; border-radius:4px; font-size:14px; color:#fca5a5;">
+                    <strong>${processInfo.errorMessage}</strong>
+                </div>`;
+             return;
+        }
+
+        resultHTML += `
+          <div class="result-summary" style="display:flex; flex-direction:column; gap:16px;">
+            <h3 style="margin:0; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1);">Process Analysis</h3>
+
+            <div>
+                <div style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                    Required Cv (Operating)
+                </div>
+                <div style="font-size:18px; font-weight:700; color:var(--text-light); line-height:1.2;">
+                    ${processInfo.baseCvOp.toFixed(2)}
+                </div>
+                ${useAdvanced ? `
+                    <div style="display:flex; gap:12px; margin-top:4px; font-size:11px; align-items:baseline;">
+                        <div>
+                            <span style="text-transform:uppercase; color:var(--muted);">Min</span> 
+                            <span style="color:var(--text-light); font-weight:600; margin-left:4px;">${processInfo.baseCvMin.toFixed(2)}</span>
+                        </div>
+                        <div style="color:var(--muted);">·</div>
+                        <div>
+                            <span style="text-transform:uppercase; color:var(--muted);">Max</span> 
+                            <span style="color:var(--text-light); font-weight:600; margin-left:4px;">${processInfo.baseCvMax.toFixed(2)}</span>
+                        </div>
+                    </div>
+                ` : ``}
+            </div>
+
+            <div>
+                <div style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                    Recommended Characteristic
+                </div>
+                <div style="font-size:16px; font-weight:600; color:var(--accent);">
+                    ${processInfo.preferredChar}
+                </div>
+                <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+                    Reason: ${processInfo.charReason}
+                </div>
+            </div>
+
+            <div>
+                <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                    Min. Required Body Class
+                </div>
+                <div style="font-size:16px; font-weight:700; color:var(--accent-yellow);">
+                    Class ${processInfo.minProcessClass}
+                </div>
+                <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+                    Based on the ASTM A216 WCB Pressure-Temperature ratings, applied with a 25% safety margin (0.75 factor).
+                </div>
+            </div>
+
+            <div>
+                <div style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                    Cavitation Index <span style="text-transform:none; font-family:serif;">(σ)</span>
+                </div>
+                <div style="font-size:18px; font-weight:700; color:${processInfo.sigmaColor};">
+                    ${processInfo.sigma}
+                </div>
+                <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+                    ${processInfo.sigmaLabel}
+                </div>
+            </div>
+          </div>
+        `;
+        resultHTML += `</div>`; 
+        resultHTML += `<h3 style="margin-top:24px;">Valve Recommendations</h3>`;
     }
 
-    const initialCv = initialResult.Cv.toFixed(2);
-    const initialRegime = initialResult.choked ? "Choked" : "Subcritical";
-
-    // NEW: Build result HTML with new structure
-    let resultHTML = `
-      <div class="result-summary">
-        <h3>Initial Required Cv: ${initialCv}</h3>
-        <p>Flow Regime: <strong>${initialRegime}</strong></p>
-      </div>
-      <h3>Valve Recommendations</h3>
-    `;
-
-    // --- 2. Find the ONE best for each category ---
-    const bestIdeal = recommendations.find((v) => v.fit === "Ideal");
-    const bestAcceptable = recommendations.find(
-      (v) => v.fit === "Acceptable"
-    );
-
-    if (!bestIdeal && !bestAcceptable) {
-      resultHTML +=
-        "<p>No suitable valves found in the desired 20-80% operating range.</p>";
+    // --- PART 2: VALVE CARDS ---
+    let finalPicks = [];
+    
+    // Logic for Custom vs Standard
+    const customPick = recommendations.find(r => r.fit === "Custom");
+    if (customPick) {
+        finalPicks = [customPick]; 
     } else {
-      // --- 3. Display the Best Ideal (if it exists) ---
-      if (bestIdeal) {
-        resultHTML += `
-          <div class="recommendation-card ideal-fit">
-            <span class="card-title">Best Fit (Ideal): ${
-              bestIdeal.name
-            } (Size: ${bestIdeal.size}")</span>
-            Max Cv: ${bestIdeal.ratedCv.toFixed(
-              0
-            )} | Required Cv: <strong>${bestIdeal.validatedCv.toFixed(
-          2
-        )}</strong><br>
-            Operating Point: <strong>${bestIdeal.openingPercent.toFixed(
-              1
-            )}% Open</strong><br>
-            Flow: ${bestIdeal.regime}
-          </div>
-        `;
-      }
+        const goodCandidates = recommendations.filter(r => r.fit === "Ideal" || r.fit === "Acceptable");
+        const marginalCandidates = recommendations.filter(r => r.fit === "Marginal");
+        
+        if (goodCandidates.length > 0) finalPicks = goodCandidates.slice(0, 3);
+        else if (marginalCandidates.length > 0) finalPicks = marginalCandidates.slice(0, 3);
+    }
 
-      // --- 4. Display the Best Acceptable (if it exists) ---
-      if (bestAcceptable) {
+    // --- DEBUG LOG: SCORING LEADERBOARD ---
+    if (typeof DEBUG !== 'undefined' && DEBUG && finalPicks.length > 0) {
+        debugLog("--- 🏆 VALVE SCORING LEADERBOARD ---");
+        finalPicks.forEach((v, index) => {
+            debugLog(`RANK #${index + 1}: ${v.name}`, {
+                "Total Score": v.score + "/100",
+                "Operating Open": v.openOp.toFixed(1) + "%",
+                "Noise": v.noise + " dBA",
+                "Regime": v.regime
+            });
+        });
+        debugLog("------------------------------------");
+    }
+    // --------------------------------------
+    
+    if (finalPicks.length === 0) {
         resultHTML += `
-          <div class="recommendation-card acceptable-fit">
-            <span class="card-title">Best Fit (Acceptable): ${
-              bestAcceptable.name
-            } (Size: ${bestAcceptable.size}")</span>
-            Max Cv: ${bestAcceptable.ratedCv.toFixed(
-              0
-            )} | Required Cv: <strong>${bestAcceptable.validatedCv.toFixed(
-          2
-        )}</strong><br>
-            Operating Point: <strong>${bestAcceptable.openingPercent.toFixed(
-              1
-            )}% Open</strong><br>
-            Flow: ${bestAcceptable.regime}
-          </div>
-        `;
-      }
+        <div style="background:rgba(239, 68, 68, 0.1); border-left:3px solid var(--accent-red); padding:12px; border-radius:4px; font-size:14px;">
+            <strong>No suitable valves found.</strong><br>
+            <span style="font-size:13px; color:var(--muted);">All candidates failed safety checks. Try increasing pipe size.</span>
+        </div>`;
+    } else {
+        finalPicks.forEach(valve => {
+            let cssClass = "";
+            let cardStyle = "";
+            let titleStyle = "";
+            let gridHtml = "";
+            let footerHtml = "";
+            let charHtml = "";
+
+            // --- BUILD CHARACTERISTIC BADGE (RIGHT SIDE - TOP) ---
+            // Styling: White (#f3f4f6), Bold (700), Pill background
+            if (valve.fit !== "Custom") {
+                charHtml = `
+                    <span style="margin-bottom:6px; font-size:10px; color:#f3f4f6; font-weight:700; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px;">
+                        ${valve.characteristic}
+                    </span>`;
+            }
+
+            if (valve.fit === "Custom") {
+                // --- CUSTOM CARD STYLE ---
+                cardStyle = `
+                    background: rgba(255, 255, 255, 0.07); 
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border-left: 3px solid rgba(255, 255, 255, 0.5);
+                `;
+                titleStyle = "color: #f3f4f6; font-weight:600;";
+                
+                // Grid (Simple: Cv + Process TD only)
+                gridHtml = `
+                    <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:4px; grid-column: 1 / -1;">
+                        <div style="color:var(--muted); font-size:10px; text-transform:uppercase; margin-bottom:2px;">Calculated Requirement</div>
+                        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                             <strong style="font-size:15px; color:#f3f4f6;">Cv: ${valve.cvOp.toFixed(2)}</strong>
+                             <div style="color:var(--muted); font-size:11px;">Process TD: ${valve.processTurndown}</div>
+                        </div>
+                    </div>
+                `;
+
+                // Footer (Regime only, Right aligned)
+                footerHtml = `
+                    <div style="margin-top:8px; font-size:11px; color:var(--muted); text-align:right; font-style:italic;">
+                        Flow Regime: ${valve.regime}
+                    </div>
+                `;
+
+            } else {
+                // --- STANDARD CARD STYLE ---
+                if (valve.fit === "Ideal") cssClass = "ideal-fit";
+                else if (valve.fit === "Acceptable") cssClass = "acceptable-fit";
+                else cssClass = "marginal-fit";
+                
+                // Grid (Standard: Shows Min-Max Cv)
+                gridHtml = `
+                    <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:4px;">
+                        <div style="color:var(--muted); font-size:10px; text-transform:uppercase; margin-bottom:2px;">Operating Point</div>
+                        <strong style="font-size:15px; color:#f3f4f6;">${valve.openOp.toFixed(1)}% Open</strong>
+                        <div style="color:var(--muted); font-size:11px; margin-top:2px;">Cv: ${valve.cvOp.toFixed(2)}</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:4px;">
+                        <div style="color:var(--muted); font-size:10px; text-transform:uppercase; margin-bottom:2px;">Range (Min-Max)</div>
+                        <strong style="font-size:15px; color:#f3f4f6;">${valve.openMin.toFixed(0)}% - ${valve.openMax.toFixed(0)}%</strong>
+                        <div style="color:var(--muted); font-size:11px; margin-top:2px;">Cv: ${valve.cvMin.toFixed(2)} - ${valve.cvMax.toFixed(2)}</div>
+                    </div>
+                `;
+
+                // Footer (Rangeability + Regime)
+                const rangeText = valve.valveRangeability > 0 ? valve.valveRangeability.toFixed(0) + ":1" : "N/A";
+                footerHtml = `
+                    <div style="margin-top:8px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-style:italic;" title="Ratio of Cv at 90% to Cv at 10% open">
+                            Turndown: ${rangeText}
+                        </span>
+                        <span style="font-style:italic;">Flow Regime: ${valve.regime}</span>
+                    </div>
+                `;
+            }
+
+            let noiseColor = "#34d399"; 
+            let noiseBorder = "rgba(52, 211, 153, 0.3)";
+            
+            if (valve.noise >= 85) {
+                noiseColor = "#ef4444"; 
+                noiseBorder = "rgba(239, 68, 68, 0.3)";
+            } else if (valve.noise >= 80) {
+                noiseColor = "#f59e0b"; 
+                noiseBorder = "rgba(245, 158, 11, 0.3)";
+            }
+
+            resultHTML += `
+                <div class="recommendation-card ${cssClass}" style="${cardStyle}">
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px;">
+                        
+                        <div>
+                            <div class="card-title" style="margin:0; font-size:15px; margin-bottom:4px; ${titleStyle}">${valve.name}</div>
+                            <span style="font-size:10px; color:#f3f4f6; font-weight:700; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px;">
+                                ${valve.fit === "Custom" ? "Manual Check" : `Class ${valve.pressureClass}`}
+                            </span>
+                        </div>
+
+                        <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                            ${charHtml}
+                            <span style="font-size:10px; padding:2px 6px; border-radius:4px; border:1px solid ${noiseBorder}; color:${noiseColor}; font-weight:700;" title="Hydrodynamic Noise">
+                                ${valve.noise} dBA
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
+                        ${gridHtml}
+                    </div>
+                    
+                    ${footerHtml}
+                </div>
+            `;
+        });
     }
 
     if (resultEl) resultEl.innerHTML = resultHTML;
@@ -1481,60 +2179,168 @@ function logToConsole(msg) {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-    const fluidTypeEl = document.getElementById("fluidType");
-    const customFluidDiv = document.getElementById("customFluidInputs");
+  
+  // --- 1. Initialize Tabs ---
+  const tabStandard = document.getElementById("tabStandard");
+  const tabCustom = document.getElementById("tabCustom");
+  const panelStandard = document.getElementById("panelStandard");
+  const panelCustom = document.getElementById("panelCustom");
+  const valveTypeInput = document.getElementById("valveType");
 
-    if(fluidTypeEl && customFluidDiv) 
-    {
-        fluidTypeEl.addEventListener("change", (e) => {
-        const selected = parseInt(e.target.value, 10);
-        customFluidDiv.style.display = selected === 1 ? "block" : "none";
-        });
-    }
+  const switchTab = (isCustom) => {
+    if (tabStandard) tabStandard.classList.toggle("active", !isCustom);
+    if (tabCustom) tabCustom.classList.toggle("active", isCustom);
+    if (panelStandard) panelStandard.style.display = isCustom ? "none" : "block";
+    if (panelCustom) panelCustom.style.display = isCustom ? "block" : "none";
+    if (valveTypeInput) valveTypeInput.value = isCustom ? "99" : "0";
+  };
+
+  if (tabStandard) tabStandard.addEventListener("click", () => switchTab(false));
+  if (tabCustom) tabCustom.addEventListener("click", () => switchTab(true));
+
+  // --- 2. Advanced Inputs Toggle ---
+  const advCheckbox = document.getElementById("useAdvancedInputs");
+  const advPanel = document.getElementById("advancedInputs");
+  if (advCheckbox && advPanel) {
+    advCheckbox.addEventListener("change", (e) => {
+      advPanel.style.display = e.target.checked ? "grid" : "none";
+    });
+  }
+
+  // --- 3. Fluid & Valve Type Visibility ---
+  const fluidTypeEl = document.getElementById("fluidType");
+  const customFluidDiv = document.getElementById("customFluidInputs");
+  if(fluidTypeEl && customFluidDiv) {
+      fluidTypeEl.addEventListener("change", (e) => {
+          customFluidDiv.style.display = parseInt(e.target.value) === 1 ? "block" : "none";
+      });
+  }
+
+  const valveTypeEl = document.getElementById("valveType");
+  const customValveDiv = document.getElementById("customValveInputs");
+  if (valveTypeEl && customValveDiv) {
+      valveTypeEl.addEventListener("change", (e) => {
+          customValveDiv.style.display = parseInt(e.target.value) === 99 ? "block" : "none";
+      });
+  }
+
+  // --- 4. Custom Valve Style: Sync FL and FD (ROBUST) ---
+  const styleSelect = document.getElementById("customValveStyle");
+  
+  if (styleSelect) {
+    styleSelect.addEventListener("change", () => {
+        const val = parseInt(styleSelect.value);
+        let newFl = 0.90; 
+        let newFd = 0.46;
+
+        // Hardcoded Physics Defaults
+        switch(val) {
+            case 0: newFl = 0.90; newFd = 0.46; break; // Globe Open
+            case 1: newFl = 0.80; newFd = 1.00; break; // Globe Close
+            case 2: newFl = 0.60; newFd = 0.57; break; // Butterfly
+            case 3: newFl = 0.60; newFd = 0.99; break; // Ball
+        }
+
+        // Safely update inputs if they exist
+        const flInput = document.getElementById("customFl");
+        if (flInput) {
+            flInput.value = newFl;
+            flashInput(flInput);
+        }
+
+        const fdInput = document.getElementById("customFd");
+        if (fdInput) {
+            fdInput.value = newFd;
+            flashInput(fdInput);
+        }
+    });
+  }
+
+  // Helper for visual feedback
+  function flashInput(el) {
+      el.style.transition = "background-color 0.4s ease";
+      el.style.backgroundColor = "rgba(255, 255, 255, 0.6)";
+      setTimeout(() => el.style.backgroundColor = "", 400);
+  }
+
+  // --- 5. Populate Fluids Dropdown ---
+  const fluidSelect = document.getElementById("fluidSelect");
+  if (fluidSelect && typeof fluidsDatabase !== 'undefined') {
+    fluidSelect.innerHTML = "";
+    fluidsDatabase.forEach((fluid, index) => {
+      const opt = document.createElement("option");
+      opt.value = index;
+      opt.textContent = fluid.name;
+      fluidSelect.appendChild(opt);
+    });
+
+    fluidSelect.addEventListener("change", (e) => {
+      const fluid = fluidsDatabase[e.target.value];
+      if (fluid) {
+        const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+        setVal("sg", fluid.relativeDensity);
+        setVal("pv", fluid.Pv);
+        setVal("pc", fluid.Pc);
+        setVal("viscosity", fluid.dynamicViscosity);
+      }
+    });
+    // Initial Load
+    fluidSelect.dispatchEvent(new Event("change"));
+  }
 });
 
 document.getElementById("resetBtn").addEventListener("click", () => {
-  // Reset values
+  // 1. Reset Main Process values (Flow, Pressure, Temp, Pipe)
   document.getElementById("flowRate").value = 530;
   document.getElementById("inletPressure").value = 85;
   document.getElementById("outletPressure").value = 30;
   document.getElementById("pipeDiameter").value = 4;
   document.getElementById("temperature").value = 77;
-  document.getElementById("fluidType").value = 0;
-  document.getElementById("valveType").value = 0;
+  
+  // Reset Selectors (Back to defaults)
+  document.getElementById("fluidType").value = 0; // Reset selection to Water
+  document.getElementById("valveType").value = 0; // Reset selection to Globe
+  document.getElementById("customValveStyle").value = 0; // Reset Custom Style
 
-  // Reset units
+  // Reset Main units
   document.getElementById("flowRateUnit").value = "gpm";
   document.getElementById("inletPressureUnit").value = "psig";
   document.getElementById("outletPressureUnit").value = "psig";
   document.getElementById("pipeDiameterUnit").value = "in";
   document.getElementById("temperatureUnit").value = "f";
 
-  // Reset custom fluid inputs
-  document.getElementById("Pc").value = "";
-  document.getElementById("Pv").value = "";
-  document.getElementById("density").value = "";
-  document.getElementById("viscosity").value = "";
-  document.getElementById("pcUnit").value = "psia";
-  document.getElementById("pvUnit").value = "psia";
-  document.getElementById("densityUnit").value = "kgm3";
-  document.getElementById("viscosityUnit").value = "cst";
+  // --- NEW: Reset Advanced Min/Max Checkbox ---
+  const advCheckbox = document.getElementById("useAdvancedInputs");
+  const advPanel = document.getElementById("advancedInputs");
+  if (advCheckbox && advPanel) {
+      advCheckbox.checked = false; // Uncheck box
+      advPanel.style.display = "none"; // Hide panel immediately
+  }
   
-  // Trigger UI update for custom panel
+  // Reset Custom Valve inputs (These are usually specific to the attempt, so we reset them)
+  document.getElementById("customValveSize").value = 4;
+  document.getElementById("customValveSizeUnit").value = "in";
+  document.getElementById("customFl").value = 0.90;
+
+  // 2. Hide Custom Panels
+  // The data is still there, just hidden.
   document.getElementById("customFluidInputs").style.display = "none";
+  document.getElementById("customValveInputs").style.display = "none";
 
-  // 4. Hide the Debug Log
+  // 3. Hide Debug Log
   const debugContainer = document.getElementById("debugContainer");
-
   if (debugContainer) {
-      debugContainer.style.display = "none"; // Hide the whole container
+      debugContainer.style.display = "none"; 
   }
 
+  // 4. Reset Result Text
   document.getElementById("result").innerHTML = "Reset to defaults.";
-  logToConsole("Inputs reset to defaults.");
+  
+  // 5. Trigger Update
+  parameterUpdate();
+  logToConsole("Inputs reset (Custom Fluid data preserved).");
 });
 
-/* Quick tests */
 /* Quick tests */
 function runPreset(preset) {
   // Ensure default Imperial/US units are selected for these tests
@@ -1546,11 +2352,11 @@ function runPreset(preset) {
   document.getElementById("fluidType").value = 0; // Water
 
   if (preset === 1) {
-    document.getElementById("flowRate").value = 5;
-    document.getElementById("inletPressure").value = 50;
-    document.getElementById("outletPressure").value = 49; // dp = 1 psi
-    document.getElementById("pipeDiameter").value = 0.5;
-    document.getElementById("temperature").value = 68; // 20C
+    document.getElementById("flowRate").value = 530;
+    document.getElementById("inletPressure").value = 85;
+    document.getElementById("outletPressure").value = 30; // dp = 1 psi
+    document.getElementById("pipeDiameter").value = 4;
+    document.getElementById("temperature").value = 77; // 20C
   } else if (preset === 2) {
     document.getElementById("flowRate").value = 10;
     document.getElementById("inletPressure").value = 100;
@@ -1558,10 +2364,10 @@ function runPreset(preset) {
     document.getElementById("pipeDiameter").value = 1;
     document.getElementById("temperature").value = 68; // 20C
   } else {
-    document.getElementById("flowRate").value = 50;
-    document.getElementById("inletPressure").value = 200;
-    document.getElementById("outletPressure").value = 100; // dp = 100 psi
-    document.getElementById("pipeDiameter").value = 2;
+    document.getElementById("flowRate").value = 390;
+    document.getElementById("inletPressure").value = 20;
+    document.getElementById("outletPressure").value = 10; // dp = 100 psi
+    document.getElementById("pipeDiameter").value = 4;
     document.getElementById("temperature").value = 68; // 20C
   }
   // parameterUpdate(); // This is called by the click()

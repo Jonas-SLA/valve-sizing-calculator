@@ -4,6 +4,7 @@
   --accent: #60a5fa; /* Blue */
   --accent-green: #34d399; /* Green */
   --accent-yellow: #f59e0b; /* Amber */
+  --accent-red: #ef4444; /* Red */
   --muted: #9aa5b1;
   --glass: rgba(255, 255, 255, 0.03);
   --border-color: rgba(255, 255, 255, 0.06);
@@ -252,6 +253,14 @@ input::-webkit-inner-spin-button {
   color: var(--accent-yellow);
 }
 
+.recommendation-card.marginal-fit {
+  border-left-color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.05);
+}
+.recommendation-card.marginal-fit .card-title {
+  color: var(--accent-red);
+}
+
 /* ============================================
     Custom Fluid & Debug Section
     ============================================ */
@@ -393,3 +402,34 @@ select::-ms-expand {
   display: none;
 }
 
+/* Make fixed unit labels look like select dropdowns */
+.unit-display {
+  flex-grow: 0;
+  flex-shrink: 0;
+  width: 110px; /* Matches your input-group select width */
+  
+  background: #0b1220; /* Matches select background */
+  border: 1px solid var(--border-color);
+  border-left: none; /* Merge with input */
+  
+  color: var(--muted);
+  font-size: 13px;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Ensure the titles in the advanced box match the main headers */
+#advancedInputs h4 {
+  margin: 16px 0 8px 0;
+  color: var(--accent);
+  font-size: 14px; /* Matches h3 in form-group-box */
+  font-weight: 600;
+}
+#advancedInputs h4:first-child {
+  margin-top: 0;
+}

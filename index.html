@@ -24,7 +24,7 @@
             <h3>Process Conditions</h3>
 
             <div class="row">
-              <label for="flowRate">Flow (Q)</label>
+              <label for="flowRate">Operating Flow</label>
               <div class="input-group">
                 <input
                   id="flowRate"
@@ -53,6 +53,7 @@
                 <select id="inletPressureUnit">
                   <option value="psig">psig</option>
                   <option value="kpa_g">kPa (gauge)</option>
+                  <option value="bar_g">bar (gauge)</option>
                 </select>
               </div>
             </div>
@@ -70,6 +71,7 @@
                 <select id="outletPressureUnit">
                   <option value="psig">psig</option>
                   <option value="kpa_g">kPa (gauge)</option>
+                  <option value="bar_g">bar (gauge)</option>
                 </select>
               </div>
             </div>
@@ -97,10 +99,95 @@
                 <input id="temperature" type="number" step="any" value="68" />
                 <select id="temperatureUnit">
                   <option value="f">°F</option>
+                  <option value="c">°C</option>
                   <option value="k">K</option>
                 </select>
               </div>
             
+            <div class="row">
+              <label class="checkbox-label" style="display:flex; align-items:center; gap:8px; color:var(--accent); font-weight:600; cursor:pointer; font-size:13px; margin-top:8px;">
+                <input type="checkbox" id="useAdvancedInputs" onchange="toggleAdvancedInputs()" />
+                Specify Min/Max Operating Points?
+              </label>
+            </div>
+
+            <div id="advancedInputs" class="form-group-box" style="display:none; margin-top:8px;">
+              
+              <h4>Minimum Conditions</h4>
+              
+              <div class="row">
+                <label for="flowRateMin">Min Flow (Qmin)</label>
+                <div class="input-group">
+                  <input id="flowRateMin" type="number" step="any" placeholder="Auto (-10%)" />
+                  <select id="flowRateMinUnit">
+                    <option value="gpm">GPM</option>
+                    <option value="m3h">m³/h</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <label for="inletPressureMin">Inlet Pressure @ Min Flow</label>
+                <div class="input-group">
+                  <input id="inletPressureMin" type="number" step="any" placeholder="Constant" />
+                  <select id="inletPressureMinUnit">
+                    <option value="psig">psig</option>
+                    <option value="kpa_g">kPa (gauge)</option>
+                    <option value="bar_g">bar (gauge)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <label for="outletPressureMin">Outlet Pressure (P2)</label>
+                <div class="input-group">
+                  <input id="outletPressureMin" type="number" step="any" placeholder="Constant" />
+                  <select id="outletPressureMinUnit">
+                    <option value="psig">psig</option>
+                    <option value="kpa_g">kPa (gauge)</option>
+                    <option value="bar_g">bar (gauge)</option>
+                  </select>
+                </div>
+              </div>
+
+              <h4>Maximum Conditions</h4>
+
+              <div class="row">
+                <label for="flowRateMax">Max Flow (Qmax)</label>
+                <div class="input-group">
+                  <input id="flowRateMax" type="number" step="any" placeholder="Auto (+10%)" />
+                  <select id="flowRateMaxUnit">
+                    <option value="gpm">GPM</option>
+                    <option value="m3h">m³/h</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <label for="inletPressureMax">Inlet Pressure @ Max Flow</label>
+                <div class="input-group">
+                  <input id="inletPressureMax" type="number" step="any" placeholder="Constant" />
+                  <select id="inletPressureMaxUnit">
+                    <option value="psig">psig</option>
+                    <option value="kpa_g">kPa (gauge)</option>
+                    <option value="bar_g">bar (gauge)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <label for="outletPressureMax">Outlet Pressure (P2)</label>
+                <div class="input-group">
+                  <input id="outletPressureMax" type="number" step="any" placeholder="Constant" />
+                  <select id="outletPressureMaxUnit">
+                    <option value="psig">psig</option>
+                    <option value="kpa_g">kPa (gauge)</option>
+                    <option value="bar_g">bar (gauge)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
           </div> <hr class="divider" />
 
           <div class="row">
@@ -120,6 +207,7 @@
                 <select id="pcUnit">
                   <option value="psia">psia</option>
                   <option value="kpa_a">kPa (abs)</option>
+                  <option value="bar_a">bar (abs)</option>
                 </select>
               </div>
             </div>
@@ -131,6 +219,7 @@
                 <select id="pvUnit">
                   <option value="psia">psia</option>
                   <option value="kpa_a">kPa (abs)</option>
+                  <option value="bar_a">bar (abs)</option>
                 </select>
               </div>
             </div>
@@ -167,7 +256,48 @@
               <option value="1">Globe (contoured plug, close)</option>
               <option value="2">Butterfly</option>
               <option value="3">Ball (full)</option>
+              <option value="99">Custom</option>
             </select>
+          </div>
+
+          <div id="customValveInputs" style="display:none;" class="form-group-box">
+            <h3>Custom Valve Parameters</h3>
+            
+            <div class="row">
+              <label for="customValveStyle">Valve Geometry Style</label>
+              <select id="customValveStyle">
+                <option value="0">Globe (contoured plug, open)</option>
+                <option value="1">Globe (contoured plug, close)</option>
+                <option value="2">Butterfly</option>
+                <option value="3">Ball (full)</option>
+              </select>
+            </div>
+
+            <div class="row">
+              <label for="customValveSize">Valve Size</label>
+              <div class="input-group">
+                <input type="number" id="customValveSize" value="4" step="0.5" />
+                <select id="customValveSizeUnit">
+                  <option value="in">inches</option>
+                  <option value="mm">mm</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row">
+              <label for="customFl">FL - Valve Recovery Factor</label>
+              <div class="input-group">
+                <input type="number" id="customFl" value="0.90" step="0.01" min="0.1" max="1.0" />
+                <select disabled style="opacity:0"><option></option></select>
+              </div>
+            </div>
+
+            <div class="row">
+              <label for="customFd">Fd - Valve Style Modifier</label>
+              <div class="input-group">
+                <input type="number" id="customFd" value="0.46" step="0.01" min="0.01" max="1.0" />
+                <select disabled style="opacity:0"><option></option></select>
+              </div>
           </div>
 
           </div> <div class="row actions">
@@ -218,5 +348,15 @@
 
     <script src="valveDatabase.js"></script>
     <script src="app.js"></script>
+    <script>
+      function toggleAdvancedInputs() {
+        const chk = document.getElementById('useAdvancedInputs');
+        const div = document.getElementById('advancedInputs');
+        div.style.display = chk.checked ? 'block' : 'none';
+        if(chk.checked) {
+          setTimeout(() => div.scrollIntoView({behavior: "smooth", block: "center"}), 100);
+        }
+      }
+    </script>
   </body>
 </html>

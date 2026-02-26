@@ -203,7 +203,7 @@
             <div class="row">
               <label for="Pc">Critical Pressure (Pc)</label>
               <div class="input-group">
-                <input type="number" id="Pc" placeholder="e.g., 3200" />
+                <input type="number" id="Pc" step="any" placeholder="e.g., 3200" />
                 <select id="pcUnit">
                   <option value="psia">psia</option>
                   <option value="kpa_a">kPa (abs)</option>
@@ -215,7 +215,7 @@
             <div class="row">
               <label for="Pv">Vapor Pressure (Pv)</label>
               <div class="input-group">
-                <input type="number" id="Pv" placeholder="e.g., 0.3" />
+                <input type="number" id="Pv" step="any" placeholder="e.g., 0.3" />
                 <select id="pvUnit">
                   <option value="psia">psia</option>
                   <option value="kpa_a">kPa (abs)</option>
@@ -227,7 +227,7 @@
             <div class="row">
               <label for="density">Density (rho) or SG</label>
               <div class="input-group">
-                <input type="number" id="density" placeholder="e.g., 1000" />
+                <input type="number" id="density" step="any" placeholder="e.g., 1000" />
                 <select id="densityUnit">
                   <option value="kgm3">kg/m³</option>
                   <option value="sg">SG</option>
@@ -238,7 +238,7 @@
             <div class="row">
               <label for="viscosity">Kinematic Viscosity (v)</label>
               <div class="input-group">
-                <input type="number" id="viscosity" placeholder="e.g., 1.0" />
+                <input type="number" id="viscosity" step="any" placeholder="e.g., 1.0" />
                 <select id="viscosityUnit">
                   <option value="cst">cSt</option>
                   <option value="m2s">m²/s</option>
@@ -276,7 +276,7 @@
             <div class="row">
               <label for="customValveSize">Valve Size</label>
               <div class="input-group">
-                <input type="number" id="customValveSize" value="4" step="0.5" />
+                <input type="number" id="customValveSize" value="4" step="any" />
                 <select id="customValveSizeUnit">
                   <option value="in">inches</option>
                   <option value="mm">mm</option>

@@ -1570,26 +1570,49 @@ function LTS_ValveSizing_CalculateCavitationSigma(P1, P2, Pv) {
         color: "#34d399" // Green
     };
 
+    // Fetch the current valve type from state
+    const currentValveType = UserInputs.getProperty("getInputs.valveType");
+    const isBallValve = (currentValveType === UserInputs.Valves.BALL);
+
     // Determine Severity based on industry standard ranges
     if (sigmaVal <= 1.0) {
         result.severity = "Flashing";
         result.consequence = "Flashing is occurring.";
         result.color = "#7f1d1d"; // Dark Red / Purple
-    } 
-    else if (sigmaVal <= 1.5) {
-        result.severity = "Severe";
-        result.consequence = "Potential for severe cavitation.";
-        result.color = "#ef4444"; // Red
-    } 
-    else if (sigmaVal <= 1.7) {
-        result.severity = "Moderate";
-        result.consequence = "Some cavitation control required.";
-        result.color = "#f97316"; // Orange
-    } 
-    else if (sigmaVal <= 2.0) {
-        result.severity = "Incipient";
-        result.consequence = "No cavitation control required (Hardened trim recommended).";
-        result.color = "#eab308"; // Yellow
+    }
+    else if(isBallValve) {
+        if (sigmaVal <= 2.0) {
+            result.severity = "Severe";
+            result.consequence = "Severe cavitation. High risk of damage for ball valves.";
+            result.color = "#ef4444"; // Red
+        } 
+        else if (sigmaVal <= 2.8) {
+            result.severity = "Moderate";
+            result.consequence = "Moderate cavitation. Anti-cavitation trim required.";
+            result.color = "#f97316"; // Orange
+        } 
+        else if (sigmaVal <= 3.6) {
+            result.severity = "Incipient";
+            result.consequence = "Incipient cavitation. Monitor for noise; hardened trim recommended.";
+            result.color = "#eab308"; // Yellow
+        }
+    }
+    else {
+        if (sigmaVal <= 1.5) {
+            result.severity = "Severe";
+            result.consequence = "Potential for severe cavitation.";
+            result.color = "#ef4444"; // Red
+        } 
+        else if (sigmaVal <= 1.7) {
+            result.severity = "Moderate";
+            result.consequence = "Some cavitation control required.";
+            result.color = "#f97316"; // Orange
+        } 
+        else if (sigmaVal <= 2.0) {
+            result.severity = "Incipient";
+            result.consequence = "No cavitation control required (Hardened trim recommended).";
+            result.color = "#eab308"; // Yellow
+        }
     }
 
     return result;
@@ -2794,9 +2817,13 @@ if (calcBtn) {
                             
                             <div>
                                 <div class="card-title" style="margin:0; font-size:15px; margin-bottom:4px; ${titleStyle}">${valve.name}</div>
-                                <span style="font-size:10px; color:#f3f4f6; font-weight:700; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px;">
-                                    ${valve.fit === "Custom" ? "Manual Check" : `Class ${valve.pressureClass}`}
-                                </span>
+                                    <span style="font-size:10px; color:#f3f4f6; font-weight:700; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px;">
+                                        ${valve.fit === "Custom" ? "Manual Check" : `Class ${valve.pressureClass}`}
+                                    </span>
+                                    ${valve.fit !== "Custom" ? `
+                                    <span style="margin-left: 4px; font-size:10px; color:#f3f4f6; font-weight:700; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px;">
+                                        Rated Cv: ${Number(valve.ratedCv).toFixed(1)}
+                                    </span>` : ''}
                             </div>
 
                             <div style="display:flex; flex-direction:column; align-items:flex-end;">

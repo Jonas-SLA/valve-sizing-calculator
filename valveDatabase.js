@@ -1524,7 +1524,7 @@ const valveDatabase = [
         ratedCv: 417,
         Fl: 0.81,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [55.0, 118, 180, 235, 280, 312, 341, 368, 390, 417]
@@ -1537,7 +1537,7 @@ const valveDatabase = [
         ratedCv: 271,
         Fl: 0.89,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [15.7, 35.8, 60.2, 86.2, 115, 146, 179, 215, 247, 271]
@@ -1550,7 +1550,7 @@ const valveDatabase = [
         ratedCv: 701,
         Fl: 0.84,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [66.6, 147, 221, 292, 375, 450, 522, 592, 652, 701]
@@ -1563,7 +1563,7 @@ const valveDatabase = [
         ratedCv: 836,
         Fl: 0.85,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [100, 213, 330, 451, 553, 648, 719, 773, 809, 836]
@@ -1791,7 +1791,7 @@ const valveDatabase = [
         ratedCv: 4.44,
         Fl: 0.83,
         Fd: 0.46, // Not explicitly listed for 0.5", assuming default
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [1.76, 3.29, 4.29, 4.44, 4.44, 4.44, 4.44, 4.44, 4.44, 4.44]
@@ -1804,7 +1804,7 @@ const valveDatabase = [
         ratedCv: 9.72,
         Fl: 0.88,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [3.85, 7.19, 9.40, 9.72, 9.72, 9.72, 9.72, 9.72, 9.72, 9.72]
@@ -1817,7 +1817,7 @@ const valveDatabase = [
         ratedCv: 16.9,
         Fl: 0.94,
         Fd: 0.50, // Listed as 0.50 at max travel
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [4.39, 10.3, 14.0, 15.5, 16.2, 16.6, 16.8, 16.8, 16.9, 16.9]
@@ -1830,7 +1830,7 @@ const valveDatabase = [
         ratedCv: 34.2,
         Fl: 0.96,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [5.64, 11.9, 20.6, 27.4, 30.5, 32.4, 33.4, 33.7, 34.1, 34.2]
@@ -1843,7 +1843,7 @@ const valveDatabase = [
         ratedCv: 19.4,
         Fl: 0.90,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [4.17, 8.94, 14.6, 17.4, 18.3, 18.8, 18.9, 19.0, 19.1, 19.4]
@@ -1856,7 +1856,7 @@ const valveDatabase = [
         ratedCv: 58.6,
         Fl: 0.94,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [13.0, 30.1, 44.3, 52.4, 56.4, 57.8, 58.4, 58.5, 58.6, 58.6]
@@ -1869,7 +1869,7 @@ const valveDatabase = [
         ratedCv: 17.9,
         Fl: 0.86,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [4.35, 9.79, 14.9, 16.6, 17.3, 17.5, 17.5, 17.6, 17.7, 17.9]
@@ -1882,7 +1882,7 @@ const valveDatabase = [
         ratedCv: 129,
         Fl: 0.91,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [30.8, 53.8, 65.1, 92.4, 110, 118, 123, 126, 128, 129]
@@ -1895,7 +1895,7 @@ const valveDatabase = [
         ratedCv: 88.4,
         Fl: 0.95,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [9.99, 27.6, 44.9, 61.0, 71.9, 78.4, 83.1, 86.2, 87.5, 88.4]
@@ -1908,7 +1908,7 @@ const valveDatabase = [
         ratedCv: 223,
         Fl: 0.88,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [50.8, 68.2, 116, 159, 185, 201, 212, 219, 222, 223]
@@ -1921,7 +1921,7 @@ const valveDatabase = [
         ratedCv: 86.7,
         Fl: 0.85,
         Fd: 0.50,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Quick Opening",
         flowDirection: "Flow Up",
         cvCurve: [13.5, 32.3, 52.2, 66.2, 74.4, 81.1, 85.0, 85.8, 86.3, 86.7]
@@ -1934,7 +1934,7 @@ const valveDatabase = [
         ratedCv: 13.6,
         Fl: 0.96,
         Fd: 0.46, 
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [2.21, 3.87, 5.29, 6.56, 8.20, 9.82, 11.1, 12.1, 13.0, 13.6]
@@ -1947,7 +1947,7 @@ const valveDatabase = [
         ratedCv: 31.9,
         Fl: 0.96,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [3.99, 7.53, 11.1, 14.8, 18.7, 22.5, 25.8, 29.2, 31.2, 31.9]
@@ -1960,7 +1960,7 @@ const valveDatabase = [
         ratedCv: 16.7,
         Fl: 0.96,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [1.96, 3.42, 4.94, 6.11, 7.80, 9.30, 10.9, 13.0, 15.1, 16.7]
@@ -1973,7 +1973,7 @@ const valveDatabase = [
         ratedCv: 52.4,
         Fl: 0.95,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [6.08, 11.9, 18.0, 24.1, 30.1, 36.4, 42.8, 49.9, 52.0, 52.4]
@@ -1986,7 +1986,7 @@ const valveDatabase = [
         ratedCv: 15.7,
         Fl: 0.94,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [1.88, 3.41, 4.95, 6.49, 8.06, 9.67, 11.23, 12.79, 14.35, 15.7]
@@ -1999,7 +1999,7 @@ const valveDatabase = [
         ratedCv: 110.4,
         Fl: 0.92,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [15.4, 29.6, 43.4, 58.3, 71.8, 83.9, 93.8, 103, 108, 110.4]
@@ -2012,7 +2012,7 @@ const valveDatabase = [
         ratedCv: 80.4,
         Fl: 0.94,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [6.59, 13.3, 20.7, 28.1, 36.0, 44.0, 55.6, 67.5, 76.2, 80.4]
@@ -2025,7 +2025,7 @@ const valveDatabase = [
         ratedCv: 86.8,
         Fl: 0.90,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [6.16, 12.8, 20.0, 27.8, 36.1, 45.1, 58.8, 67.5, 78.8, 86.8]
@@ -2038,7 +2038,7 @@ const valveDatabase = [
         ratedCv: 209,
         Fl: 0.89,
         Fd: 0.46,
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Linear",
         flowDirection: "Flow Up",
         cvCurve: [21.3, 39.7, 57.5, 75.8, 100, 129, 157, 180, 199, 209]
@@ -2051,7 +2051,7 @@ const valveDatabase = [
         ratedCv: 13.2,
         Fl: 0.96,
         Fd: 0.50, // Listed: 0.09...0.50
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [0.79, 1.25, 1.80, 2.53, 3.63, 5.28, 7.59, 10.7, 12.7, 13.2]
@@ -2064,7 +2064,7 @@ const valveDatabase = [
         ratedCv: 28.1,
         Fl: 0.97,
         Fd: 0.40, // Listed: 0.077...0.40
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [0.795, 1.23, 1.91, 2.95, 4.30, 6.46, 9.84, 16.4, 22.2, 28.1]
@@ -2077,7 +2077,7 @@ const valveDatabase = [
         ratedCv: 17.3,
         Fl: 0.98,
         Fd: 0.50, // Listed: 0.069...0.50
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [0.770, 1.23, 1.78, 2.58, 3.67, 5.54, 8.30, 12.0, 15.1, 17.3]
@@ -2090,7 +2090,7 @@ const valveDatabase = [
         ratedCv: 53.8,
         Fl: 0.95,
         Fd: 0.46, // Listed: 0.062...0.46
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [1.65, 2.61, 4.30, 6.62, 11.1, 20.7, 32.8, 44.7, 50.0, 53.8]
@@ -2103,7 +2103,7 @@ const valveDatabase = [
         ratedCv: 13.8, // Note: Drops from 15.9 (90%) to 13.8 (100%)
         Fl: 0.92,
         Fd: 0.46, 
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [1.02, 1.50, 2.05, 2.78, 3.90, 5.57, 8.16, 11.8, 14.5, 13.8]
@@ -2116,7 +2116,7 @@ const valveDatabase = [
         ratedCv: 114,
         Fl: 0.92,
         Fd: 0.46, 
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [3.11, 5.77, 9.12, 13.7, 21.7, 36.0, 60.4, 86.4, 104, 114]
@@ -2129,7 +2129,7 @@ const valveDatabase = [
         ratedCv: 71.6,
         Fl: 0.92,
         Fd: 0.44, // Listed: 0.052...0.44
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [2.11, 3.11, 4.58, 6.76, 10.7, 20.7, 34.3, 48.3, 61.5, 71.6]
@@ -2142,7 +2142,7 @@ const valveDatabase = [
         ratedCv: 72.7,
         Fl: 0.92,
         Fd: 0.44, 
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [1.96, 3.05, 4.43, 6.98, 11.9, 22.3, 36.7, 50.9, 61.8, 72.7]
@@ -2155,7 +2155,7 @@ const valveDatabase = [
         ratedCv: 190,
         Fl: 0.90,
         Fd: 0.46, // Standard Default (Not explicitly listed in this snippet)
-        pressureClasses: [125, 150, 300, 600],
+        pressureClasses: [150, 300, 600],
         characteristic: "Equal Percentage",
         flowDirection: "Flow Up",
         cvCurve: [4.90, 8.19, 13.5, 20.1, 31.2, 52.6, 96.7, 140, 170, 190]

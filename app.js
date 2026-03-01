@@ -1591,7 +1591,7 @@ function LTS_ValveSizing_CalculateCavitationSigma(P1, P2, Pv) {
             result.consequence = "Moderate cavitation. Anti-cavitation trim required.";
             result.color = "#f97316"; // Orange
         } 
-        else if (sigmaVal <= 3.6) {
+        else if (sigmaVal < 3.6) {
             result.severity = "Incipient";
             result.consequence = "Incipient cavitation. Monitor for noise; hardened trim recommended.";
             result.color = "#eab308"; // Yellow
@@ -1608,7 +1608,7 @@ function LTS_ValveSizing_CalculateCavitationSigma(P1, P2, Pv) {
             result.consequence = "Some cavitation control required.";
             result.color = "#f97316"; // Orange
         } 
-        else if (sigmaVal <= 2.0) {
+        else if (sigmaVal < 2.0) {
             result.severity = "Incipient";
             result.consequence = "No cavitation control required (Hardened trim recommended).";
             result.color = "#eab308"; // Yellow
@@ -2354,10 +2354,21 @@ function LTS_ValveSizing_CalculateAndRecommend()
         UserInputs.setValveProperty("Fl", originalFl);
         UserInputs.setValveProperty("Fd", originalFd);
 
-        // Sort recommendations: Pass Turndown -> Highest Score
+        // Define weights for the Fit categories
+        const fitWeights = { "Ideal": 3, "Acceptable": 2, "Marginal": 1, "Invalid": 0, "Custom": 4 };
+
+        // Refined sorting logic
         recommendations.sort((a, b) => {
+            // Turndown Capability (Safety First)
             if (a.turndownPass && !b.turndownPass) return -1;
             if (!a.turndownPass && b.turndownPass) return 1;
+
+            // Qualitative Fit (Ideal vs Marginal)
+            const weightA = fitWeights[a.fit] || 0;
+            const weightB = fitWeights[b.fit] || 0;
+            if (weightA !== weightB) return weightB - weightA;
+
+            // Numerical Score (The tie-breaker)
             return b.score - a.score;
         });
     }

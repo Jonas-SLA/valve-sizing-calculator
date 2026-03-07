@@ -1292,7 +1292,7 @@ function LTS_ValveSizing_RecommendFlowCharacteristic(process, isChoked, controll
             // Calculamos a razão de variação do fluxo (Turndown)
             const flowRatio = process.qMax / process.qMin;
 
-            if (flowRatio > 2.0) {
+            if (flowRatio > 1.5) {
                 // "Grandes variações de fluxo" -> Linear
                 return { type: "Linear", reason: "Flow control with Large flow variations. Linear response recommended." };
             } else {
@@ -3070,3 +3070,4 @@ function runPreset(preset) {
 document.getElementById('test1').addEventListener('click', () => runPreset(1));
 document.getElementById('test2').addEventListener('click', () => runPreset(2));
 document.getElementById('test3').addEventListener('click', () => runPreset(3));
+

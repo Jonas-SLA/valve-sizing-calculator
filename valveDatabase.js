@@ -2890,5 +2890,115 @@ const valveDatabase = [
         characteristic: "Equal Percentage",
         flowDirection: "Forward",
         cvCurve: [321, 789, 1552, 2366, 3503, 4854, 6523, 8942, 12248, 16181]
+    },
+    // =========================================================================
+    // FISHER V250 - BALL VALVE
+    // Source: Catalog 12, Page V250-1
+    // Characteristic: Approximately Equal Percentage
+    // Note: Fl and Fd values taken at 90 degrees (100% open). 
+    // =========================================================================
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, // BALL
+        size: 4,
+        ratedCv: 499,
+        Fl: 0.45,
+        Fd: 1.00,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [0, 6.74, 19.0, 39.9, 68.9, 114, 182, 335, 499, 499]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 6,
+        ratedCv: 855,
+        Fl: 0.45,
+        Fd: 0.99,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [0, 15.7, 42.8, 76.1, 130, 203, 308, 567, 855, 855]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 8,
+        ratedCv: 2190,
+        Fl: 0.45,
+        Fd: 0.99,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [1.48, 27.9, 91.8, 177, 308, 478, 720, 1220, 2190, 2190]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 10,
+        ratedCv: 3055,
+        Fl: 0.45,
+        Fd: 1.00,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [42.8, 85.5, 174, 306, 484, 764, 1150, 1800, 3055, 3055]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 12,
+        ratedCv: 5800,
+        Fl: 0.45,
+        Fd: 1.00,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [40.6, 122, 267, 499, 812, 1230, 1870, 3060, 5800, 5800]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 16,
+        ratedCv: 8130,
+        Fl: 0.45,
+        Fd: 1.00,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [68.3, 203, 447, 813, 1340, 2030, 3010, 4630, 8130, 8130]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 20,
+        ratedCv: 13200,
+        Fl: 0.45,
+        Fd: 1.00,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [132, 330, 726, 1320, 2180, 3300, 4880, 7520, 13200, 13200]
+    },
+    {
+        manufacturer: "Fisher",
+        model: "V250",
+        type: 3, 
+        size: 24,
+        ratedCv: 18300,
+        Fl: 0.45,
+        Fd: 1.00,
+        pressureClasses: ["Not specified"],
+        characteristic: "Approximately Equal Percentage",
+        flowDirection: "Forward / Reverse",
+        cvCurve: [183, 458, 1010, 1830, 3020, 4580, 6770, 10400, 18300, 18300]
     }    
 ];

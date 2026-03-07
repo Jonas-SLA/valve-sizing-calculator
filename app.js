@@ -192,7 +192,7 @@ const valveGlobesSinglePortContouredPlugOpen = {
 const valveGlobesSinglePortContouredPlugClose = {
     Fl: 0.8,
     Fd: 1.0,
-    Kc: 0.55, 
+    Kc: 0.68, 
     Cv: 0,
     Xt: 0.55,
 };
@@ -208,7 +208,7 @@ const valveButterfly = {
 const valveBallFull = {
     Fl: 0.74,
     Fd: 0.99,
-    Kc: 0.42, 
+    Kc: 0.28, 
     Cv: 0,
     Xt: 0.42,
 };
@@ -242,11 +242,14 @@ const UserInputs = (() =>
         // NEW: User Valve Inputs
         customValveSize: 4,
         customFl: 0.9,
-        customFd: 0.46
+        customFd: 0.46,
+        // NEW: User Controlled Variable Inputs for Flow Characteristics Recommendation
+        controlledVariable: 0
     };
 
     const Fluids = Object.freeze({ WATER: 0, CUSTOM: 1 });
     const Valves = Object.freeze({ GLOBEOPEN: 0, GLOBECLOSE: 1, BUTTERFLY: 2, BALL: 3, CUSTOM: 99 });
+    const ControlledVariables = Object.freeze({ NOT_SPECIFIED: 0, LEVEL: 1, PRESSURE: 2, FLOW: 3, FLOW_SPECIFIC_CASE: 4});
 
     const fluidData = {
         [Fluids.WATER]: { ...liquidWater, isSelected: true },
@@ -345,6 +348,7 @@ const UserInputs = (() =>
 
         Fluids,
         Valves,
+        ControlledVariables
     };
 })();
 
@@ -1212,10 +1216,10 @@ function LTS_ValveSizing_CheckPressureClass(valve, maxInletPressure, tempF) {
 
 /**
  * LTS_ValveSizing_RecommendFlowCharacteristic
- * Recommends the optimal valve trim characteristic (Linear vs Eq%) based on system gain.
- * Strictly follows the logic provided in the SENAI/prompt requirements.
+ * Recommends the optimal valve trim characteristic based on the SENAI standard.
  * @param {object} process - { qMin, qMax, dpMin, dpMax }
  * @param {boolean} isChoked - Choked status from sizing engine
+ * @param {number} controlledVar - Selected from UserInputs.ControlledVariables
  * @returns {object} { type: string, reason: string }
  * * Purpose:
  * To maintain a constant control loop gain, the valve characteristic should complement
@@ -1231,63 +1235,79 @@ function LTS_ValveSizing_CheckPressureClass(valve, maxInletPressure, tempF) {
  * 5. Otherwise -> Equal Percentage
  *
  * Variables:
- * - dpMax = Pressure drop at minimum flow (maximum drop)
- * - dpMin = Pressure drop at maximum flow (minimum drop)
+ * - dpMax = Pressure drop at maximum flow (maximum drop)
+ * - dpMin = Pressure drop at minimum flow (minimum drop)
  *
  * Returns:
  * Object { type: "Linear"|"Equal Percentage"|"Quick Opening", reason: "..." }
  */
-function LTS_ValveSizing_RecommendFlowCharacteristic(process, isChoked) {
+function LTS_ValveSizing_RecommendFlowCharacteristic(process, isChoked, controlledVar) {
     
-    // --- 1. Validation ---
-    if (!process.qMin || !process.qMax || !process.dpMin || !process.dpMax || process.dpMin <= 0) {
-        return {
-            type: "Equal Percentage",
-            reason: "Insufficient process data. Defaulting to Equal Percentage (Safety)."
-        };
+    // --- 1. Safety Validation ---
+    if (!process.qMin || !process.qMax || !process.dpMin || !process.dpMax) {
+        return { type: "Equal Percentage", reason: "Insufficient data. Defaulting to Equal Percentage for safety." };
     }
 
-    // --- 2. Calculate Indicators ---
-    const dpRatio = process.dpMax / process.dpMin;
-    const flowRatio = process.qMax / process.qMin;
-
-    // --- 3. PRIORITY 1: CRITICAL OVERRIDE ---
     if (isChoked) {
-        return {
-            type: "Equal Percentage",
-            reason: "Critical Override: Choked flow detected. Equal Percentage selected for stability."
-        };
+        return { type: "Equal Percentage", reason: "Critical Flow (Choked) detected. Equal Percentage recommended." };
     }
 
-    // --- 4. PRIORITY 2: STRONGLY INCREASING DP (> 2.0) ---
-    if (dpRatio > 2.0) {
-        if (flowRatio > 3.0) {
-            return {
-                type: "Quick Opening",
-                reason: `Strongly increasing ΔP (Ratio: ${dpRatio.toFixed(2)}) with large flow range. Quick Opening matches gain.`
-            };
-        } else {
-            return {
-                type: "Equal Percentage",
-                reason: `Strongly increasing ΔP (Ratio: ${dpRatio.toFixed(2)}) but small flow range. Defaulting to Eq%.`
-            };
-        }
-    }
+    // --- 2. Physics Translation to SENAI Terminology ---
+    // The lowest pressure drop (dpMin) occurs at maximum flow (due to piping friction).
+    const dpAtMaxFlow = process.dpMin; 
+    const dpAtMinFlow = process.dpMax; 
 
-    // --- 5. PRIORITY 3: APPROXIMATELY CONSTANT DP (0.8 to 1.25) ---
-    if (dpRatio >= 0.8 && dpRatio <= 1.25) {
-        return {
-            type: "Linear",
-            reason: `Approximately constant ΔP (Ratio: ${dpRatio.toFixed(2)}). Linear trim matches constant system gain.`
-        };
-    }
+    // --- 3. SENAI Guidelines Application ---
+    switch (controlledVar) {
+        
+        case UserInputs.ControlledVariables.LEVEL:
+            // Rules for Liquid Level (SENAI)
+            // Using a 1% tolerance to define "Constant"
+            if (Math.abs(dpAtMaxFlow - dpAtMinFlow) / dpAtMinFlow < 0.01) {
+                return { type: "Linear", reason: "Level control with Constant pressure drop. Linear response recommended." };
+            }
 
-    // --- 6. PRIORITY 4: VARIABLE DP (Decreasing < 0.8 OR Increasing 1.25-2.0) ---
-    let trend = dpRatio < 0.8 ? "Decreasing" : "Increasing";
-    return {
-        type: "Equal Percentage",
-        reason: `Variable ΔP (${trend}, Ratio: ${dpRatio.toFixed(2)}). Equal Percentage compensates for gain changes.`
-    };
+            if (dpAtMaxFlow < dpAtMinFlow) {
+                // Decreasing pressure drop as flow increases
+                if (dpAtMaxFlow > (0.20 * dpAtMinFlow)) {
+                    return { type: "Linear", reason: "Level control with decreasing ΔP, and ΔP at max flow is > 20% of ΔP at min flow. Linear recommended." };
+                } else {
+                    return { type: "Equal Percentage", reason: "Level control with decreasing ΔP, and ΔP at max flow is < 20% of ΔP at min flow. Equal Percentage recommended." };
+                }
+            } else {
+                // Increasing pressure drop as flow increases
+                if (dpAtMaxFlow > (2.00 * dpAtMinFlow)) {
+                    return { type: "Linear", reason: "Level control with increasing ΔP, and ΔP at max flow is > 200% of ΔP at min flow. Linear recommended." };
+                } else {
+                    return { type: "Quick Opening", reason: "Level control with increasing ΔP, and ΔP at max flow is < 200% of ΔP at min flow. Quick Opening recommended." };
+                }
+            }
+
+        case UserInputs.ControlledVariables.PRESSURE:
+            // Rule for Pressure (Liquids)
+            return { type: "Equal Percentage", reason: "For liquid systems controlling Pressure, Equal Percentage is recommended." };
+
+        case UserInputs.ControlledVariables.FLOW:
+            // Regra SENAI: Controle de Vazão (Série / Proporcional ao fluxo)
+            // Calculamos a razão de variação do fluxo (Turndown)
+            const flowRatio = process.qMax / process.qMin;
+
+            if (flowRatio > 2.0) {
+                // "Grandes variações de fluxo" -> Linear
+                return { type: "Linear", reason: "Flow control with Large flow variations. Linear response recommended." };
+            } else {
+                // "Pequenas variações de fluxo..." -> Equal Percentage
+                return { type: "Equal Percentage", reason: "Flow control but with Small flow variations. Equal Percentage recommended." };
+            }
+
+        case UserInputs.ControlledVariables.FLOW_SPECIFIC_CASE:
+            // Rule for Flow (Bypass / Proportional to flow squared)
+            return { type: "Equal Percentage", reason: "Flow (Bypass/Squared Signal). Equal Percentage recommended." };
+
+        case UserInputs.ControlledVariables.NOT_SPECIFIED:
+        default:
+            return { type: "Equal Percentage", reason: "Controlled variable not specified. Defaulting to Equal Percentage for safety." };
+    }
 }
 
 /**
@@ -1581,19 +1601,19 @@ function LTS_ValveSizing_CalculateCavitationSigma(P1, P2, Pv) {
         result.color = "#7f1d1d"; // Dark Red / Purple
     }
     else if(isBallValve) {
-        if (sigmaVal <= 2.0) {
+        if (sigmaVal <= 3.5) {
             result.severity = "Severe";
-            result.consequence = "Severe cavitation. High risk of damage for ball valves.";
+            result.consequence = "Potential for severe cavitation.";
             result.color = "#ef4444"; // Red
         } 
-        else if (sigmaVal <= 2.8) {
+        else if (sigmaVal <= 4.0) {
             result.severity = "Moderate";
-            result.consequence = "Moderate cavitation. Anti-cavitation trim required.";
+            result.consequence = "Some cavitation control required.";
             result.color = "#f97316"; // Orange
         } 
-        else if (sigmaVal < 3.6) {
+        else if (sigmaVal < 4.7) {
             result.severity = "Incipient";
-            result.consequence = "Incipient cavitation. Monitor for noise; hardened trim recommended.";
+            result.consequence = "No cavitation control required (Hardened trim recommended).";
             result.color = "#eab308"; // Yellow
         }
     }
@@ -2092,26 +2112,32 @@ function LTS_ValveSizing_CalculateAndRecommend()
         dpMin: designCase.p1 - designCase.p2, 
         dpMax: minCase.p1 - minCase.p2       
     };
-    const senaiRec = LTS_ValveSizing_RecommendFlowCharacteristic(processData, isChokedSafety);
+
+    // Get the Controlled Variable
+    const controlledVar = UserInputs.getProperty("getInputs.controlledVariable");
+
+    // Get the Recommended Flow Characteristic
+    const senaiRec = LTS_ValveSizing_RecommendFlowCharacteristic(processData, isChokedSafety, controlledVar);
+
     let preferredChar = senaiRec.type;
     let charReason = senaiRec.reason;
     
     // --- SCORING HELPER FUNCTION ---
     const calculateScore = (valve, opData) => {
         let score = 0;
-        const { openOp, openMin, openMax, noise, rangeability, isPreferredChar } = opData;
+        const { openOp, noise, rangeability, isPreferredChar } = opData;
 
         // 1. OPERATING OPENING (Max 30)
         const open = openOp;
         let dist = 0;
         if (open < 60) dist = 60 - open;
-        else if (open > 75) dist = open - 75;
+        else if (open > 80) dist = open - 80;
         
-        if (dist === 0) score += 30; // Ideal range (60-75%)
+        if (dist === 0) score += 30; // Ideal range (60-80%)
         else score += Math.max(0, 30 - (dist * 0.6)); // Decay
 
-        // 2. CHARACTERISTIC MATCH (Max 15)
-        if (isPreferredChar) score += 15;
+        // 2. CHARACTERISTIC MATCH (Max 20)  <-- Increased by 5 points
+        if (isPreferredChar) score += 20;
         else score += 5; 
 
         // 3. HYDRODYNAMIC NOISE (Max 15)
@@ -2126,64 +2152,34 @@ function LTS_ValveSizing_CalculateAndRecommend()
         else if (rangeability <= 10) score += 0;
         else score += ((rangeability - 10) / 15) * 10; // 15 is the span (25-10)
 
-        // 5. PRESSURE CLASS (Max 10)
+        // 5. PRESSURE CLASS (Max 15)
         const classes = [150, 300, 600, 900, 1500, 2500, 4500];
         const reqIdx = classes.indexOf(minProcessClass);
         const valIdx = classes.indexOf(valve.pressureClass);
         
         if (valIdx !== -1 && reqIdx !== -1) {
             const diff = valIdx - reqIdx;
-            if (diff === 0) score += 10;      // Exact match
-            else if (diff === 1) score += 8;  // One class higher
-            else score += 2;                  // Significantly higher/oversized
-        } else score += 10; // Fallback for legacy data
+            if (diff === 0) score += 15;      // Exact match
+            else if (diff === 1) score += 10; // One class higher
+            else score += 5;                  // Significantly higher/oversized
+        } else score += 15; // Fallback for legacy data
 
-        // 6. VALVE SIZE vs PIPE SIZE (Max 5)        
+        // 6. VALVE SIZE vs PIPE SIZE (Max 10)      
         if (inputs.pipeDiameter > 0) {
             const dratio = valve.size / inputs.pipeDiameter;
 
             if (dratio <= 0.5) {
                 // Valve is <= 50% of pipe size (Full Score)
-                score += 5;
+                score += 10;
             } else if (dratio < 1.0) {
                 // Progressive score between 0.5 and 1.0
-                // Formula: (1.0 - 0.75) * 10 = 2.5 points
-                score += (1.0 - dratio) * 10;
+                // Formula: (1.0 - ratio) * 20 scales it from 0 to 10 points
+                score += (1.0 - dratio) * 20; 
             }
             // If dratio >= 1.0 (Valve >= Pipe), score remains 0
         }
-
-        // 7. INSTALLED GAIN (Max 15)
-        let installedGainScore = 0;
-        if (valve.cvCurve && valve.cvCurve.length === 10) {
-            const sysParams = {
-                openMin: openMin, 
-                dpAtMin: (minCase.p1 - minCase.p2), 
-                openMax: openMax, 
-                dpAtMax: (designCase.p1 - designCase.p2) 
-            };
-            const rawGain = LTS_ValveSizing_CalculateInstalledGain(valve.cvCurve, openOp, SG, sysParams);
-            
-            if (rawGain !== null) {
-                // Normalize Gain: 1.0 = Linear relationship relative to process max flow
-                const idealSlope = designCase.q / 100; 
-                const normGain = rawGain / idealSlope;
-                
-                // Perfect Gain (0.5 to 1.5) -> 15 Points
-                if (normGain >= 0.5 && normGain <= 1.5) {
-                    installedGainScore = 15; 
-                } 
-                // Acceptable Gain (0.2 to 3.0) -> Partial Points
-                else if (normGain >= 0.2 && normGain <= 3.0) {
-                    const distGain = Math.abs(normGain - 1.0);
-                    // Scaled the decay to align with Max 15
-                    installedGainScore = Math.max(0, 15 - (distGain * 5.0)); 
-                } 
-            }
-        }
-        score += Math.round(installedGainScore);
         
-        return score;
+        return Math.round(score);
     };
 
     let recommendations = [];
@@ -2237,7 +2233,7 @@ function LTS_ValveSizing_CalculateAndRecommend()
                 fit: "Custom", score: 100, 
                 isPreferredChar: false, turndownPass: true,
                 valveRangeability: 0, processTurndown: processTurndown,
-                regime: resOp.choked ? "Choked" : "Non-Choked"
+                regime: (resOp.choked ? "Choked" : "Non-Choked") + (resOp.Re > 10000 ? " Turbulent" : " Non-Tubulent")
             });
         }
     }
@@ -2311,12 +2307,13 @@ function LTS_ValveSizing_CalculateAndRecommend()
             const openOp = getOpen(resOp.Cv, candidate);
             const openMin = getOpen(resMin.Cv, candidate);
             const openMax = getOpen(resMax.Cv, candidate);
+            const isPreferredChar = (candidate.characteristic === preferredChar);
 
             // Classify Fit
             let fit = "Marginal";
             if (openMin >= 0 && openMax <= 100) {
-                if (openOp >= 50 && openOp <= 80 && openMax > 80 && openMax <= 95 && openMin > 10) fit = "Ideal";
-                else if (openOp >= 30 && openOp <= 85 && openMax <= 95 && openMin > 10) fit = "Acceptable";
+                if (openOp >= 60 && openOp <= 80 && openMax <= 95 && openMin > 10 && isPreferredChar) fit = "Ideal";
+                else if (openOp >= 20 && openOp <= 80 && openMax <= 95 && openMin > 10) fit = "Acceptable";
             } else fit = "Invalid"; 
             
             if (fit === "Invalid") continue;
@@ -2325,10 +2322,8 @@ function LTS_ValveSizing_CalculateAndRecommend()
             const processTurndown = resMax.Cv / resMin.Cv;
             let cvAt90 = candidate.cvCurve ? candidate.cvCurve[8] : candidate.ratedCv * 0.9;
             let cvAt10 = candidate.cvCurve ? candidate.cvCurve[0] : candidate.ratedCv * 0.1;
-            
             const valveRangeability = cvAt90 / cvAt10;
             const turndownPass = (valveRangeability >= processTurndown);
-            const isPreferredChar = (candidate.characteristic === preferredChar);
 
             // Calculate Total Score
             const opData = { openOp, openMin, openMax, noise: noiseVal, rangeability: valveRangeability, isPreferredChar };
@@ -2346,7 +2341,7 @@ function LTS_ValveSizing_CalculateAndRecommend()
                 fit: fit, score: Math.round(score),
                 isPreferredChar: isPreferredChar, turndownPass: turndownPass,
                 valveRangeability: valveRangeability, processTurndown: processTurndown.toFixed(2),
-                regime: resOp.choked ? "Choked" : "Non-Choked"
+                regime: (resOp.choked ? "Choked" : "Non-Choked") + (resOp.Re > 10000 ? " Turbulent" : " Non-Turbulent")
             });
         }
 
@@ -2392,190 +2387,193 @@ function LTS_ValveSizing_CalculateAndRecommend()
  * It also triggers necessary fluid property calculations (e.g., density, viscosity).
  */
 function LTS_ValveSizing_ParameterUpdate() {
-  // --- 1. Read Standard DOM Elements ---
-  const inletPressureEl = document.getElementById("inletPressure");
-  const outletPressureEl = document.getElementById("outletPressure");
-  const temperatureEl = document.getElementById("temperature");
-  const flowRateEl = document.getElementById("flowRate");
-  const pipeDiameterEl = document.getElementById("pipeDiameter");
-  const fluidTypeEl = document.getElementById("fluidType");
-  const valveTypeEl = document.getElementById("valveType");
+    // --- 1. Read Standard DOM Elements ---
+    const inletPressureEl = document.getElementById("inletPressure");
+    const outletPressureEl = document.getElementById("outletPressure");
+    const temperatureEl = document.getElementById("temperature");
+    const flowRateEl = document.getElementById("flowRate");
+    const pipeDiameterEl = document.getElementById("pipeDiameter");
+    const fluidTypeEl = document.getElementById("fluidType");
+    const valveTypeEl = document.getElementById("valveType");
+    const controlledVarEl = document.getElementById("controlledVariable");
 
-  // Main Units
-  const flowRateUnit = document.getElementById("flowRateUnit").value;
-  const inletPressureUnit = document.getElementById("inletPressureUnit").value;
-  const outletPressureUnit = document.getElementById("outletPressureUnit").value;
-  const pipeDiameterUnit = document.getElementById("pipeDiameterUnit").value;
-  const temperatureUnit = document.getElementById("temperatureUnit").value;
+    // Main Units
+    const flowRateUnit = document.getElementById("flowRateUnit").value;
+    const inletPressureUnit = document.getElementById("inletPressureUnit").value;
+    const outletPressureUnit = document.getElementById("outletPressureUnit").value;
+    const pipeDiameterUnit = document.getElementById("pipeDiameterUnit").value;
+    const temperatureUnit = document.getElementById("temperatureUnit").value;
 
-  // --- 2. Convert Main Inputs ---
-  // Pressure: Convert to PSI Gauge, then add Atmospheric to get PSIA
-  let inletPressure = parseFloat(inletPressureEl.value) || 0;
-  if (inletPressureUnit === "kpa_g") inletPressure *= conversionConstants.KPA_TO_PSI;
-  else if (inletPressureUnit === "bar_g") inletPressure *= conversionConstants.BAR_TO_PSI;
-  inletPressure += P_ATMOSPHERIC_PSI;
+    // --- 2. Convert Main Inputs ---
+    // Pressure: Convert to PSI Gauge, then add Atmospheric to get PSIA
+    let inletPressure = parseFloat(inletPressureEl.value) || 0;
+    if (inletPressureUnit === "kpa_g") inletPressure *= conversionConstants.KPA_TO_PSI;
+    else if (inletPressureUnit === "bar_g") inletPressure *= conversionConstants.BAR_TO_PSI;
+    inletPressure += P_ATMOSPHERIC_PSI;
 
-  let outletPressure = parseFloat(outletPressureEl.value) || 0;
-  if (outletPressureUnit === "kpa_g") outletPressure *= conversionConstants.KPA_TO_PSI;
-  else if (outletPressureUnit === "bar_g") outletPressure *= conversionConstants.BAR_TO_PSI;
-  outletPressure += P_ATMOSPHERIC_PSI;
+    let outletPressure = parseFloat(outletPressureEl.value) || 0;
+    if (outletPressureUnit === "kpa_g") outletPressure *= conversionConstants.KPA_TO_PSI;
+    else if (outletPressureUnit === "bar_g") outletPressure *= conversionConstants.BAR_TO_PSI;
+    outletPressure += P_ATMOSPHERIC_PSI;
 
-  // Temperature: Internal calculations use Celsius
-  let temperature = parseFloat(temperatureEl.value) || 0;
-  if (temperatureUnit === "f") temperature = (temperature - 32) * 5 / 9;
-  else if (temperatureUnit === "k") temperature = temperature - 273.15;
-  // If 'c', do nothing (already correct)
+    // Temperature: Internal calculations use Celsius
+    let temperature = parseFloat(temperatureEl.value) || 0;
+    if (temperatureUnit === "f") temperature = (temperature - 32) * 5 / 9;
+    else if (temperatureUnit === "k") temperature = temperature - 273.15;
+    // If 'c', do nothing (already correct)
 
-  let flowRate = parseFloat(flowRateEl.value) || 0;
-  if (flowRateUnit === "m3h") flowRate *= conversionConstants.M3H_TO_GPM;
+    let flowRate = parseFloat(flowRateEl.value) || 0;
+    if (flowRateUnit === "m3h") flowRate *= conversionConstants.M3H_TO_GPM;
 
-  let pipeDiameter = parseFloat(pipeDiameterEl.value) || 0;
-  if (pipeDiameterUnit === "mm") pipeDiameter *= conversionConstants.MM_TO_IN;
+    let pipeDiameter = parseFloat(pipeDiameterEl.value) || 0;
+    if (pipeDiameterUnit === "mm") pipeDiameter *= conversionConstants.MM_TO_IN;
 
-  const fluidType = (fluidTypeEl ? parseInt(fluidTypeEl.value, 10) : 0) || 0;
-  const valveType = (valveTypeEl ? parseInt(valveTypeEl.value, 10) : 0) || 0;
+    const fluidType = (fluidTypeEl ? parseInt(fluidTypeEl.value, 10) : 0) || 0;
+    const valveType = (valveTypeEl ? parseInt(valveTypeEl.value, 10) : 0) || 0;
+    const controlledVariable = (controlledVarEl ? parseInt(controlledVarEl.value, 10) : 0);
 
-  UserInputs.setInput("inletPressure", inletPressure);
-  UserInputs.setInput("outletPressure", outletPressure);
-  UserInputs.setInput("temperature", temperature);
-  UserInputs.setInput("flowRate", flowRate);
-  UserInputs.setInput("pipeDiameter", pipeDiameter);
-  UserInputs.setInput("fluidType", fluidType);
-  UserInputs.setInput("valveType", valveType);
+    UserInputs.setInput("inletPressure", inletPressure);
+    UserInputs.setInput("outletPressure", outletPressure);
+    UserInputs.setInput("temperature", temperature);
+    UserInputs.setInput("flowRate", flowRate);
+    UserInputs.setInput("pipeDiameter", pipeDiameter);
+    UserInputs.setInput("fluidType", fluidType);
+    UserInputs.setInput("valveType", valveType);
+    UserInputs.setInput("controlledVariable", controlledVariable);
+    
+    // ======================================================
+    // NEW: READ CUSTOM VALVE INPUTS (Direct Conversion)
+    // ======================================================
+    
+    const custSizeInput = document.getElementById("customValveSize");
+    const custSizeUnit = document.getElementById("customValveSizeUnit")?.value || "in";
+    let custSize;
 
-  // ======================================================
-  // NEW: READ CUSTOM VALVE INPUTS (Direct Conversion)
-  // ======================================================
-  
-  const custSizeInput = document.getElementById("customValveSize");
-  const custSizeUnit = document.getElementById("customValveSizeUnit")?.value || "in";
-  let custSize;
+    // Logic: Only apply conversion if user actually typed a number.
+    if (custSizeInput && custSizeInput.value !== "") {
+        let rawVal = parseFloat(custSizeInput.value);
+        if (isNaN(rawVal)) rawVal = 0;
 
-  // Logic: Only apply conversion if user actually typed a number.
-  if (custSizeInput && custSizeInput.value !== "") {
-      let rawVal = parseFloat(custSizeInput.value);
-      if (isNaN(rawVal)) rawVal = 0;
+        if (custSizeUnit === "mm") {
+            // Direct mathematical conversion (e.g. 100mm -> 3.937")
+            custSize = rawVal * conversionConstants.MM_TO_IN;
+        } else {
+            custSize = rawVal;
+        }
+    } else {
+        // Fallback: Use Pipe Diameter (Already inches)
+        custSize = pipeDiameter;
+    }
 
-      if (custSizeUnit === "mm") {
-          // Direct mathematical conversion (e.g. 100mm -> 3.937")
-          custSize = rawVal * conversionConstants.MM_TO_IN;
-      } else {
-          custSize = rawVal;
-      }
-  } else {
-      // Fallback: Use Pipe Diameter (Already inches)
-      custSize = pipeDiameter;
-  }
+    // --- UPDATED SECTION START: Read FL and FD directly from Inputs --- 
+    // We removed the switch statement here because the inputs are already 
+    // pre-filled by the event listener in DOMContentLoaded.
+    
+    const custFl = parseFloat(document.getElementById("customFl")?.value) || 0.9;
+    const custFd = parseFloat(document.getElementById("customFd")?.value) || 0.46; 
 
-  // --- UPDATED SECTION START: Read FL and FD directly from Inputs --- 
-  // We removed the switch statement here because the inputs are already 
-  // pre-filled by the event listener in DOMContentLoaded.
-  
-  const custFl = parseFloat(document.getElementById("customFl")?.value) || 0.9;
-  const custFd = parseFloat(document.getElementById("customFd")?.value) || 0.46; 
+    UserInputs.setInput("customValveSize", custSize);
+    UserInputs.setInput("customFl", custFl);
+    UserInputs.setInput("customFd", custFd);
+    // --- UPDATED SECTION END ---
 
-  UserInputs.setInput("customValveSize", custSize);
-  UserInputs.setInput("customFl", custFl);
-  UserInputs.setInput("customFd", custFd);
-  // --- UPDATED SECTION END ---
+    // --- 3. Handle Advanced Inputs (Min/Max) ---
+    const useAdvanced = document.getElementById("useAdvancedInputs")?.checked;
+    let Q_min, P1_min, Q_max, P1_max, P2_min, P2_max;
 
-  // --- 3. Handle Advanced Inputs (Min/Max) ---
-  const useAdvanced = document.getElementById("useAdvancedInputs")?.checked;
-  let Q_min, P1_min, Q_max, P1_max, P2_min, P2_max;
+    if (useAdvanced) {
+        const qMinUnit = document.getElementById("flowRateMinUnit").value;
+        let rawQmin = parseFloat(document.getElementById("flowRateMin").value);
+        Q_min = (!isNaN(rawQmin)) ? ((qMinUnit === "m3h") ? rawQmin * conversionConstants.M3H_TO_GPM : rawQmin) : flowRate * 0.9;
+        
+        const pMinUnit = document.getElementById("inletPressureMinUnit").value;
+        let rawP1min = parseFloat(document.getElementById("inletPressureMin").value);
+        if (!isNaN(rawP1min)) {
+            if (pMinUnit === "kpa_g") rawP1min *= conversionConstants.KPA_TO_PSI;
+            else if (pMinUnit === "bar_g") rawP1min *= conversionConstants.BAR_TO_PSI;
+            P1_min = rawP1min + P_ATMOSPHERIC_PSI;
+        } else P1_min = inletPressure;
 
-  if (useAdvanced) {
-      const qMinUnit = document.getElementById("flowRateMinUnit").value;
-      let rawQmin = parseFloat(document.getElementById("flowRateMin").value);
-      Q_min = (!isNaN(rawQmin)) ? ((qMinUnit === "m3h") ? rawQmin * conversionConstants.M3H_TO_GPM : rawQmin) : flowRate * 0.9;
-      
-      const pMinUnit = document.getElementById("inletPressureMinUnit").value;
-      let rawP1min = parseFloat(document.getElementById("inletPressureMin").value);
-      if (!isNaN(rawP1min)) {
-          if (pMinUnit === "kpa_g") rawP1min *= conversionConstants.KPA_TO_PSI;
-          else if (pMinUnit === "bar_g") rawP1min *= conversionConstants.BAR_TO_PSI;
-          P1_min = rawP1min + P_ATMOSPHERIC_PSI;
-      } else P1_min = inletPressure;
+        const p2MinUnit = document.getElementById("outletPressureMinUnit").value;
+        let rawP2min = parseFloat(document.getElementById("outletPressureMin").value);
+        if (!isNaN(rawP2min)) {
+            if (p2MinUnit === "kpa_g") rawP2min *= conversionConstants.KPA_TO_PSI;
+            else if (p2MinUnit === "bar_g") rawP2min *= conversionConstants.BAR_TO_PSI;
+            P2_min = rawP2min + P_ATMOSPHERIC_PSI;
+        } else P2_min = outletPressure;
 
-      const p2MinUnit = document.getElementById("outletPressureMinUnit").value;
-      let rawP2min = parseFloat(document.getElementById("outletPressureMin").value);
-      if (!isNaN(rawP2min)) {
-          if (p2MinUnit === "kpa_g") rawP2min *= conversionConstants.KPA_TO_PSI;
-          else if (p2MinUnit === "bar_g") rawP2min *= conversionConstants.BAR_TO_PSI;
-          P2_min = rawP2min + P_ATMOSPHERIC_PSI;
-      } else P2_min = outletPressure;
+        const qMaxUnit = document.getElementById("flowRateMaxUnit").value;
+        let rawQmax = parseFloat(document.getElementById("flowRateMax").value);
+        Q_max = (!isNaN(rawQmax)) ? ((qMaxUnit === "m3h") ? rawQmax * conversionConstants.M3H_TO_GPM : rawQmax) : flowRate * 1.1;
 
-      const qMaxUnit = document.getElementById("flowRateMaxUnit").value;
-      let rawQmax = parseFloat(document.getElementById("flowRateMax").value);
-      Q_max = (!isNaN(rawQmax)) ? ((qMaxUnit === "m3h") ? rawQmax * conversionConstants.M3H_TO_GPM : rawQmax) : flowRate * 1.1;
+        const pMaxUnit = document.getElementById("inletPressureMaxUnit").value;
+        let rawP1max = parseFloat(document.getElementById("inletPressureMax").value);
+        if (!isNaN(rawP1max)) {
+            if (pMaxUnit === "kpa_g") rawP1max *= conversionConstants.KPA_TO_PSI;
+            else if (pMaxUnit === "bar_g") rawP1max *= conversionConstants.BAR_TO_PSI;
+            P1_max = rawP1max + P_ATMOSPHERIC_PSI;
+        } else P1_max = inletPressure;
 
-      const pMaxUnit = document.getElementById("inletPressureMaxUnit").value;
-      let rawP1max = parseFloat(document.getElementById("inletPressureMax").value);
-      if (!isNaN(rawP1max)) {
-          if (pMaxUnit === "kpa_g") rawP1max *= conversionConstants.KPA_TO_PSI;
-          else if (pMaxUnit === "bar_g") rawP1max *= conversionConstants.BAR_TO_PSI;
-          P1_max = rawP1max + P_ATMOSPHERIC_PSI;
-      } else P1_max = inletPressure;
+        const p2MaxUnit = document.getElementById("outletPressureMaxUnit").value;
+        let rawP2max = parseFloat(document.getElementById("outletPressureMax").value);
+        if (!isNaN(rawP2max)) {
+            if (p2MaxUnit === "kpa_g") rawP2max *= conversionConstants.KPA_TO_PSI;
+            else if (p2MaxUnit === "bar_g") rawP2max *= conversionConstants.BAR_TO_PSI;
+            P2_max = rawP2max + P_ATMOSPHERIC_PSI;
+        } else P2_max = outletPressure;
 
-      const p2MaxUnit = document.getElementById("outletPressureMaxUnit").value;
-      let rawP2max = parseFloat(document.getElementById("outletPressureMax").value);
-      if (!isNaN(rawP2max)) {
-          if (p2MaxUnit === "kpa_g") rawP2max *= conversionConstants.KPA_TO_PSI;
-          else if (p2MaxUnit === "bar_g") rawP2max *= conversionConstants.BAR_TO_PSI;
-          P2_max = rawP2max + P_ATMOSPHERIC_PSI;
-      } else P2_max = outletPressure;
+    } else {
+        Q_min = flowRate * 0.9; P1_min = inletPressure; P2_min = outletPressure;
+        Q_max = flowRate * 1.1; P1_max = inletPressure; P2_max = outletPressure;
+    }
 
-  } else {
-      Q_min = flowRate * 0.9; P1_min = inletPressure; P2_min = outletPressure;
-      Q_max = flowRate * 1.1; P1_max = inletPressure; P2_max = outletPressure;
-  }
+    UserInputs.setInput("flowRateMin", Q_min);
+    UserInputs.setInput("inletPressureMin", P1_min);
+    UserInputs.setInput("outletPressureMin", P2_min);
+    UserInputs.setInput("flowRateMax", Q_max);
+    UserInputs.setInput("inletPressureMax", P1_max);
+    UserInputs.setInput("outletPressureMax", P2_max);
 
-  UserInputs.setInput("flowRateMin", Q_min);
-  UserInputs.setInput("inletPressureMin", P1_min);
-  UserInputs.setInput("outletPressureMin", P2_min);
-  UserInputs.setInput("flowRateMax", Q_max);
-  UserInputs.setInput("inletPressureMax", P1_max);
-  UserInputs.setInput("outletPressureMax", P2_max);
+    // --- 4. Fluid Properties ---
+    if (fluidType === UserInputs.Fluids.WATER) {
+        const waterVaporPressure = LTS_ValveSizing_EstimateWaterVaporPressure(temperature);
+        UserInputs.setFluidProperty("Pv", waterVaporPressure);
+        LTS_ValveSizing_CalculateSpecificGravity();
+        const estViscosity = LTS_ValveSizing_EstimateWaterKinematicViscosityCSt(temperature);
+        UserInputs.setFluidProperty("viscosity", estViscosity);
+    } else if (fluidType === UserInputs.Fluids.CUSTOM) {
+        const PcEl = document.getElementById("Pc");
+        const PvEl = document.getElementById("Pv");
+        const rhoEl = document.getElementById("density");
+        const viscEl = document.getElementById("viscosity");
+        const pcUnit = document.getElementById("pcUnit").value;
+        const pvUnit = document.getElementById("pvUnit").value;
+        const densityUnit = document.getElementById("densityUnit").value;
+        const viscosityUnit = document.getElementById("viscosityUnit").value;
 
-  // --- 4. Fluid Properties ---
-  if (fluidType === UserInputs.Fluids.WATER) {
-    const waterVaporPressure = LTS_ValveSizing_EstimateWaterVaporPressure(temperature);
-    UserInputs.setFluidProperty("Pv", waterVaporPressure);
-    LTS_ValveSizing_CalculateSpecificGravity();
-    const estViscosity = LTS_ValveSizing_EstimateWaterKinematicViscosityCSt(temperature);
-    UserInputs.setFluidProperty("viscosity", estViscosity);
-  } else if (fluidType === UserInputs.Fluids.CUSTOM) {
-      const PcEl = document.getElementById("Pc");
-      const PvEl = document.getElementById("Pv");
-      const rhoEl = document.getElementById("density");
-      const viscEl = document.getElementById("viscosity");
-      const pcUnit = document.getElementById("pcUnit").value;
-      const pvUnit = document.getElementById("pvUnit").value;
-      const densityUnit = document.getElementById("densityUnit").value;
-      const viscosityUnit = document.getElementById("viscosityUnit").value;
+        let Pc = PcEl ? parseFloat(PcEl.value) || 0 : 0;
+        if (pcUnit === "kpa_a") Pc *= conversionConstants.KPA_TO_PSI;
+        else if (pcUnit === "bar_a") Pc *= conversionConstants.BAR_TO_PSI;
 
-      let Pc = PcEl ? parseFloat(PcEl.value) || 0 : 0;
-      if (pcUnit === "kpa_a") Pc *= conversionConstants.KPA_TO_PSI;
-      else if (pcUnit === "bar_a") Pc *= conversionConstants.BAR_TO_PSI;
+        let Pv = PvEl ? parseFloat(PvEl.value) || 0 : 0;
+        if (pvUnit === "kpa_a") Pv *= conversionConstants.KPA_TO_PSI;
+        else if (pvUnit === "bar_a") Pv *= conversionConstants.BAR_TO_PSI;
 
-      let Pv = PvEl ? parseFloat(PvEl.value) || 0 : 0;
-      if (pvUnit === "kpa_a") Pv *= conversionConstants.KPA_TO_PSI;
-      else if (pvUnit === "bar_a") Pv *= conversionConstants.BAR_TO_PSI;
+        let visc = viscEl ? parseFloat(viscEl.value) || 0 : 0;
+        if (viscosityUnit === "m2s") visc *= conversionConstants.M2S_TO_CST;
 
-      let visc = viscEl ? parseFloat(viscEl.value) || 0 : 0;
-      if (viscosityUnit === "m2s") visc *= conversionConstants.M2S_TO_CST;
+        let rho_input = rhoEl ? parseFloat(rhoEl.value) || 0 : 0;
+        let specificGravity = 1.0;
+        if (densityUnit === "sg") specificGravity = rho_input;
+        else if (rho_input > 0) specificGravity = rho_input / D_REFERENCE_WATER;
 
-      let rho_input = rhoEl ? parseFloat(rhoEl.value) || 0 : 0;
-      let specificGravity = 1.0;
-      if (densityUnit === "sg") specificGravity = rho_input;
-      else if (rho_input > 0) specificGravity = rho_input / D_REFERENCE_WATER;
+        if (specificGravity <= 0) specificGravity = 1.0;
 
-      if (specificGravity <= 0) specificGravity = 1.0;
-
-      UserInputs.setFluidProperty("Pc", Pc);
-      UserInputs.setFluidProperty("Pv", Pv);
-      UserInputs.setFluidProperty("viscosity", visc);
-      UserInputs.setFluidProperty("relativeDensity", specificGravity);
-  }
+        UserInputs.setFluidProperty("Pc", Pc);
+        UserInputs.setFluidProperty("Pv", Pv);
+        UserInputs.setFluidProperty("viscosity", visc);
+        UserInputs.setFluidProperty("relativeDensity", specificGravity);
+    }
 }
 
 /**
@@ -2873,200 +2871,200 @@ function logToConsole(msg) {
 }
 
 
-document.addEventListener("DOMContentLoaded", () => {
-  
-  // --- 1. Initialize Tabs ---
-  const tabStandard = document.getElementById("tabStandard");
-  const tabCustom = document.getElementById("tabCustom");
-  const panelStandard = document.getElementById("panelStandard");
-  const panelCustom = document.getElementById("panelCustom");
-  const valveTypeInput = document.getElementById("valveType");
+document.addEventListener("DOMContentLoaded", () => {  
+    // --- 1. Initialize Tabs ---
+    const tabStandard = document.getElementById("tabStandard");
+    const tabCustom = document.getElementById("tabCustom");
+    const panelStandard = document.getElementById("panelStandard");
+    const panelCustom = document.getElementById("panelCustom");
+    const valveTypeInput = document.getElementById("valveType");
 
-  const switchTab = (isCustom) => {
-    if (tabStandard) tabStandard.classList.toggle("active", !isCustom);
-    if (tabCustom) tabCustom.classList.toggle("active", isCustom);
-    if (panelStandard) panelStandard.style.display = isCustom ? "none" : "block";
-    if (panelCustom) panelCustom.style.display = isCustom ? "block" : "none";
-    if (valveTypeInput) valveTypeInput.value = isCustom ? "99" : "0";
-  };
+    const switchTab = (isCustom) => {
+        if (tabStandard) tabStandard.classList.toggle("active", !isCustom);
+        if (tabCustom) tabCustom.classList.toggle("active", isCustom);
+        if (panelStandard) panelStandard.style.display = isCustom ? "none" : "block";
+        if (panelCustom) panelCustom.style.display = isCustom ? "block" : "none";
+        if (valveTypeInput) valveTypeInput.value = isCustom ? "99" : "0";
+    };
 
-  if (tabStandard) tabStandard.addEventListener("click", () => switchTab(false));
-  if (tabCustom) tabCustom.addEventListener("click", () => switchTab(true));
+    if (tabStandard) tabStandard.addEventListener("click", () => switchTab(false));
+    if (tabCustom) tabCustom.addEventListener("click", () => switchTab(true));
 
-  // --- 2. Advanced Inputs Toggle ---
-  const advCheckbox = document.getElementById("useAdvancedInputs");
-  const advPanel = document.getElementById("advancedInputs");
-  if (advCheckbox && advPanel) {
-    advCheckbox.addEventListener("change", (e) => {
-      advPanel.style.display = e.target.checked ? "grid" : "none";
-    });
-  }
+    // --- 2. Advanced Inputs Toggle ---
+    const advCheckbox = document.getElementById("useAdvancedInputs");
+    const advPanel = document.getElementById("advancedInputs");
+    if (advCheckbox && advPanel) {
+        advCheckbox.addEventListener("change", (e) => {
+        advPanel.style.display = e.target.checked ? "grid" : "none";
+        });
+    }
 
-  // --- 3. Fluid & Valve Type Visibility ---
-  const fluidTypeEl = document.getElementById("fluidType");
-  const customFluidDiv = document.getElementById("customFluidInputs");
-  if(fluidTypeEl && customFluidDiv) {
-      fluidTypeEl.addEventListener("change", (e) => {
-          customFluidDiv.style.display = parseInt(e.target.value) === 1 ? "block" : "none";
-      });
-  }
+    // --- 3. Fluid & Valve Type Visibility ---
+    const fluidTypeEl = document.getElementById("fluidType");
+    const customFluidDiv = document.getElementById("customFluidInputs");
+    if(fluidTypeEl && customFluidDiv) {
+        fluidTypeEl.addEventListener("change", (e) => {
+            customFluidDiv.style.display = parseInt(e.target.value) === 1 ? "block" : "none";
+        });
+    }
 
-  const valveTypeEl = document.getElementById("valveType");
-  const customValveDiv = document.getElementById("customValveInputs");
-  if (valveTypeEl && customValveDiv) {
-      valveTypeEl.addEventListener("change", (e) => {
-          customValveDiv.style.display = parseInt(e.target.value) === 99 ? "block" : "none";
-      });
-  }
+    const valveTypeEl = document.getElementById("valveType");
+    const customValveDiv = document.getElementById("customValveInputs");
+    if (valveTypeEl && customValveDiv) {
+        valveTypeEl.addEventListener("change", (e) => {
+            customValveDiv.style.display = parseInt(e.target.value) === 99 ? "block" : "none";
+        });
+    }
 
-  // --- 4. Custom Valve Style: Sync FL and FD (ROBUST) ---
-  const styleSelect = document.getElementById("customValveStyle");
-  
-  if (styleSelect) {
-    styleSelect.addEventListener("change", () => {
-        const val = parseInt(styleSelect.value);
-        let newFl = 0.90; 
-        let newFd = 0.46;
+    // --- 4. Custom Valve Style: Sync FL and FD (ROBUST) ---
+    const styleSelect = document.getElementById("customValveStyle");
+    
+    if (styleSelect) {
+        styleSelect.addEventListener("change", () => {
+            const val = parseInt(styleSelect.value);
+            let newFl = 0.90; 
+            let newFd = 0.46;
 
-        // Hardcoded Physics Defaults
-        switch(val) {
-            case 0: newFl = 0.90; newFd = 0.46; break; // Globe Open
-            case 1: newFl = 0.80; newFd = 1.00; break; // Globe Close
-            case 2: newFl = 0.60; newFd = 0.57; break; // Butterfly
-            case 3: newFl = 0.60; newFd = 0.99; break; // Ball
+            // Hardcoded Physics Defaults
+            switch(val) {
+                case 0: newFl = 0.90; newFd = 0.46; break; // Globe Open
+                case 1: newFl = 0.80; newFd = 1.00; break; // Globe Close
+                case 2: newFl = 0.60; newFd = 0.57; break; // Butterfly
+                case 3: newFl = 0.60; newFd = 0.99; break; // Ball
+            }
+
+            // Safely update inputs if they exist
+            const flInput = document.getElementById("customFl");
+            if (flInput) {
+                flInput.value = newFl;
+                flashInput(flInput);
+            }
+
+            const fdInput = document.getElementById("customFd");
+            if (fdInput) {
+                fdInput.value = newFd;
+                flashInput(fdInput);
+            }
+        });
+    }
+
+    // Helper for visual feedback
+    function flashInput(el) {
+        el.style.transition = "background-color 0.4s ease";
+        el.style.backgroundColor = "rgba(255, 255, 255, 0.6)";
+        setTimeout(() => el.style.backgroundColor = "", 400);
+    }
+
+    // --- 5. Populate Fluids Dropdown ---
+    const fluidSelect = document.getElementById("fluidSelect");
+    if (fluidSelect && typeof fluidsDatabase !== 'undefined') {
+        fluidSelect.innerHTML = "";
+        fluidsDatabase.forEach((fluid, index) => {
+        const opt = document.createElement("option");
+        opt.value = index;
+        opt.textContent = fluid.name;
+        fluidSelect.appendChild(opt);
+        });
+
+        fluidSelect.addEventListener("change", (e) => {
+        const fluid = fluidsDatabase[e.target.value];
+        if (fluid) {
+            const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+            setVal("sg", fluid.relativeDensity);
+            setVal("pv", fluid.Pv);
+            setVal("pc", fluid.Pc);
+            setVal("viscosity", fluid.dynamicViscosity);
         }
-
-        // Safely update inputs if they exist
-        const flInput = document.getElementById("customFl");
-        if (flInput) {
-            flInput.value = newFl;
-            flashInput(flInput);
-        }
-
-        const fdInput = document.getElementById("customFd");
-        if (fdInput) {
-            fdInput.value = newFd;
-            flashInput(fdInput);
-        }
-    });
-  }
-
-  // Helper for visual feedback
-  function flashInput(el) {
-      el.style.transition = "background-color 0.4s ease";
-      el.style.backgroundColor = "rgba(255, 255, 255, 0.6)";
-      setTimeout(() => el.style.backgroundColor = "", 400);
-  }
-
-  // --- 5. Populate Fluids Dropdown ---
-  const fluidSelect = document.getElementById("fluidSelect");
-  if (fluidSelect && typeof fluidsDatabase !== 'undefined') {
-    fluidSelect.innerHTML = "";
-    fluidsDatabase.forEach((fluid, index) => {
-      const opt = document.createElement("option");
-      opt.value = index;
-      opt.textContent = fluid.name;
-      fluidSelect.appendChild(opt);
-    });
-
-    fluidSelect.addEventListener("change", (e) => {
-      const fluid = fluidsDatabase[e.target.value];
-      if (fluid) {
-        const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-        setVal("sg", fluid.relativeDensity);
-        setVal("pv", fluid.Pv);
-        setVal("pc", fluid.Pc);
-        setVal("viscosity", fluid.dynamicViscosity);
-      }
-    });
-    // Initial Load
-    fluidSelect.dispatchEvent(new Event("change"));
-  }
+        });
+        // Initial Load
+        fluidSelect.dispatchEvent(new Event("change"));
+    }
 });
 
 document.getElementById("resetBtn").addEventListener("click", () => {
-  // 1. Reset Main Process values (Flow, Pressure, Temp, Pipe)
-  document.getElementById("flowRate").value = 535;
-  document.getElementById("inletPressure").value = 85;
-  document.getElementById("outletPressure").value = 30;
-  document.getElementById("pipeDiameter").value = 4;
-  document.getElementById("temperature").value = 77;
-  
-  // Reset Selectors (Back to defaults)
-  document.getElementById("fluidType").value = 0; // Reset selection to Water
-  document.getElementById("valveType").value = 0; // Reset selection to Globe
-  document.getElementById("customValveStyle").value = 0; // Reset Custom Style
+    // 1. Reset Main Process values (Flow, Pressure, Temp, Pipe)
+    document.getElementById("flowRate").value = 535;
+    document.getElementById("inletPressure").value = 85;
+    document.getElementById("outletPressure").value = 30;
+    document.getElementById("pipeDiameter").value = 4;
+    document.getElementById("temperature").value = 77;
+    
+    // Reset Selectors (Back to defaults)
+    document.getElementById("fluidType").value = 0; // Reset selection to Water
+    document.getElementById("valveType").value = 0; // Reset selection to Globe
+    document.getElementById("customValveStyle").value = 0; // Reset Custom Style
+    document.getElementById("controlledVariable").value = 0; //Reset the Controlled Variable
 
-  // Reset Main units
-  document.getElementById("flowRateUnit").value = "gpm";
-  document.getElementById("inletPressureUnit").value = "psig";
-  document.getElementById("outletPressureUnit").value = "psig";
-  document.getElementById("pipeDiameterUnit").value = "in";
-  document.getElementById("temperatureUnit").value = "f";
+    // Reset Main units
+    document.getElementById("flowRateUnit").value = "gpm";
+    document.getElementById("inletPressureUnit").value = "psig";
+    document.getElementById("outletPressureUnit").value = "psig";
+    document.getElementById("pipeDiameterUnit").value = "in";
+    document.getElementById("temperatureUnit").value = "f";
 
-  // --- NEW: Reset Advanced Min/Max Checkbox ---
-  const advCheckbox = document.getElementById("useAdvancedInputs");
-  const advPanel = document.getElementById("advancedInputs");
-  if (advCheckbox && advPanel) {
-      advCheckbox.checked = false; // Uncheck box
-      advPanel.style.display = "none"; // Hide panel immediately
-  }
-  
-  // Reset Custom Valve inputs (These are usually specific to the attempt, so we reset them)
-  document.getElementById("customValveSize").value = 4;
-  document.getElementById("customValveSizeUnit").value = "in";
-  document.getElementById("customFl").value = 0.90;
+    // --- NEW: Reset Advanced Min/Max Checkbox ---
+    const advCheckbox = document.getElementById("useAdvancedInputs");
+    const advPanel = document.getElementById("advancedInputs");
+    if (advCheckbox && advPanel) {
+        advCheckbox.checked = false; // Uncheck box
+        advPanel.style.display = "none"; // Hide panel immediately
+    }
+    
+    // Reset Custom Valve inputs (These are usually specific to the attempt, so we reset them)
+    document.getElementById("customValveSize").value = 4;
+    document.getElementById("customValveSizeUnit").value = "in";
+    document.getElementById("customFl").value = 0.90;
 
-  // 2. Hide Custom Panels
-  // The data is still there, just hidden.
-  document.getElementById("customFluidInputs").style.display = "none";
-  document.getElementById("customValveInputs").style.display = "none";
+    // 2. Hide Custom Panels
+    // The data is still there, just hidden.
+    document.getElementById("customFluidInputs").style.display = "none";
+    document.getElementById("customValveInputs").style.display = "none";
 
-  // 3. Hide Debug Log
-  const debugContainer = document.getElementById("debugContainer");
-  if (debugContainer) {
-      debugContainer.style.display = "none"; 
-  }
+    // 3. Hide Debug Log
+    const debugContainer = document.getElementById("debugContainer");
+    if (debugContainer) {
+        debugContainer.style.display = "none"; 
+    }
 
-  // 4. Reset Result Text
-  document.getElementById("result").innerHTML = "Reset to defaults.";
-  
-  // 5. Trigger Update
-  LTS_ValveSizing_ParameterUpdate();
-  logToConsole("Inputs reset (Custom Fluid data preserved).");
+    // 4. Reset Result Text
+    document.getElementById("result").innerHTML = "Reset to defaults.";
+    
+    // 5. Trigger Update
+    LTS_ValveSizing_ParameterUpdate();
+    logToConsole("Inputs reset (Custom Fluid data preserved).");
 });
 
 /* Quick tests */
 function runPreset(preset) {
-  // Ensure default Imperial/US units are selected for these tests
-  document.getElementById("flowRateUnit").value = "gpm";
-  document.getElementById("inletPressureUnit").value = "psig";
-  document.getElementById("outletPressureUnit").value = "psig";
-  document.getElementById("pipeDiameterUnit").value = "in";
-  document.getElementById("temperatureUnit").value = "f";
-  document.getElementById("fluidType").value = 0; // Water
+    // Ensure default Imperial/US units are selected for these tests
+    document.getElementById("flowRateUnit").value = "gpm";
+    document.getElementById("inletPressureUnit").value = "psig";
+    document.getElementById("outletPressureUnit").value = "psig";
+    document.getElementById("pipeDiameterUnit").value = "in";
+    document.getElementById("temperatureUnit").value = "f";
+    document.getElementById("fluidType").value = 0; // Water
 
-  if (preset === 1) {
-    document.getElementById("flowRate").value = 10;
-    document.getElementById("inletPressure").value = 100;
-    document.getElementById("outletPressure").value = 90; // dp = 10 psi
-    document.getElementById("pipeDiameter").value = 1;
-    document.getElementById("temperature").value = 68; // 20C
-  } else if (preset === 2) {
-    document.getElementById("flowRate").value = 535;
-    document.getElementById("inletPressure").value = 85;
-    document.getElementById("outletPressure").value = 30; // dp = 1 psi
-    document.getElementById("pipeDiameter").value = 4;
-    document.getElementById("temperature").value = 77; // 20C
-  } else {
-    document.getElementById("flowRate").value = 390;
-    document.getElementById("inletPressure").value = 20;
-    document.getElementById("outletPressure").value = 10; // dp = 100 psi
-    document.getElementById("pipeDiameter").value = 4;
-    document.getElementById("temperature").value = 68; // 20C
-  }
-  // LTS_ValveSizing_ParameterUpdate(); // This is called by the click()
-  document.getElementById("calculateBtn").click();
+    if (preset === 1) {
+        document.getElementById("flowRate").value = 10;
+        document.getElementById("inletPressure").value = 100;
+        document.getElementById("outletPressure").value = 90; // dp = 10 psi
+        document.getElementById("pipeDiameter").value = 1;
+        document.getElementById("temperature").value = 68; // 20C
+    } else if (preset === 2) {
+        document.getElementById("flowRate").value = 535;
+        document.getElementById("inletPressure").value = 85;
+        document.getElementById("outletPressure").value = 30; // dp = 1 psi
+        document.getElementById("pipeDiameter").value = 4;
+        document.getElementById("temperature").value = 77; // 20C
+    } else {
+        document.getElementById("flowRate").value = 390;
+        document.getElementById("inletPressure").value = 20;
+        document.getElementById("outletPressure").value = 10; // dp = 100 psi
+        document.getElementById("pipeDiameter").value = 4;
+        document.getElementById("temperature").value = 68; // 20C
+    }
+    // LTS_ValveSizing_ParameterUpdate(); // This is called by the click()
+    document.getElementById("calculateBtn").click();
 }
 
 document.getElementById('test1').addEventListener('click', () => runPreset(1));

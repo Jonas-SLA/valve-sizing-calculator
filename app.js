@@ -1248,10 +1248,6 @@ function LTS_ValveSizing_RecommendFlowCharacteristic(process, isChoked, controll
         return { type: "Equal Percentage", reason: "Insufficient data. Defaulting to Equal Percentage for safety." };
     }
 
-    if (isChoked) {
-        return { type: "Equal Percentage", reason: "Critical Flow (Choked) detected. Equal Percentage recommended." };
-    }
-
     // --- 2. Physics Translation to SENAI Terminology ---
     // The lowest pressure drop (dpMin) occurs at maximum flow (due to piping friction).
     const dpAtMaxFlow = process.dpMin; 
@@ -3070,4 +3066,5 @@ function runPreset(preset) {
 document.getElementById('test1').addEventListener('click', () => runPreset(1));
 document.getElementById('test2').addEventListener('click', () => runPreset(2));
 document.getElementById('test3').addEventListener('click', () => runPreset(3));
+
 

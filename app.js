@@ -1218,7 +1218,6 @@ function LTS_ValveSizing_CheckPressureClass(valve, maxInletPressure, tempF) {
  * LTS_ValveSizing_RecommendFlowCharacteristic
  * Recommends the optimal valve trim characteristic based on the SENAI standard.
  * @param {object} process - { qMin, qMax, dpMin, dpMax }
- * @param {boolean} isChoked - Choked status from sizing engine
  * @param {number} controlledVar - Selected from UserInputs.ControlledVariables
  * @returns {object} { type: string, reason: string }
  * * Purpose:
@@ -1241,7 +1240,7 @@ function LTS_ValveSizing_CheckPressureClass(valve, maxInletPressure, tempF) {
  * Returns:
  * Object { type: "Linear"|"Equal Percentage"|"Quick Opening", reason: "..." }
  */
-function LTS_ValveSizing_RecommendFlowCharacteristic(process, isChoked, controlledVar) {
+function LTS_ValveSizing_RecommendFlowCharacteristic(process, controlledVar) {
     
     // --- 1. Safety Validation ---
     if (!process.qMin || !process.qMax || !process.dpMin || !process.dpMax) {
@@ -2099,10 +2098,6 @@ function LTS_ValveSizing_CalculateAndRecommend()
     }
 
     // --- 3. Characteristic Selection ---
-    // Run a preliminary sizing on the Design Case to check for Choked Flow
-    const resBaseMax = LTS_ValveSizing_SizingOrchestrator(inputs.pipeDiameter, designCase.q, designCase.p1, designCase.p2);
-    const isChokedSafety = resBaseMax ? resBaseMax.choked : false;
-
     const processData = {
         qMin: minCase.q, qMax: designCase.q,
         dpMin: designCase.p1 - designCase.p2, 
@@ -2113,7 +2108,7 @@ function LTS_ValveSizing_CalculateAndRecommend()
     const controlledVar = UserInputs.getProperty("getInputs.controlledVariable");
 
     // Get the Recommended Flow Characteristic
-    const senaiRec = LTS_ValveSizing_RecommendFlowCharacteristic(processData, isChokedSafety, controlledVar);
+    const senaiRec = LTS_ValveSizing_RecommendFlowCharacteristic(processData, controlledVar);
 
     let preferredChar = senaiRec.type;
     let charReason = senaiRec.reason;
@@ -3066,5 +3061,6 @@ function runPreset(preset) {
 document.getElementById('test1').addEventListener('click', () => runPreset(1));
 document.getElementById('test2').addEventListener('click', () => runPreset(2));
 document.getElementById('test3').addEventListener('click', () => runPreset(3));
+
 
 

@@ -2122,9 +2122,9 @@ function LTS_ValveSizing_CalculateAndRecommend()
         const open = openOp;
         let dist = 0;
         if (open < 60) dist = 60 - open;
-        else if (open > 80) dist = open - 80;
+        else if (open > 75) dist = open - 75;
         
-        if (dist === 0) score += 30; // Ideal range (60-80%)
+        if (dist === 0) score += 30; // Ideal range (60-75%)
         else score += Math.max(0, 30 - (dist * 0.6)); // Decay
 
         // 2. CHARACTERISTIC MATCH (Max 20)  <-- Increased by 5 points
@@ -3061,6 +3061,3 @@ function runPreset(preset) {
 document.getElementById('test1').addEventListener('click', () => runPreset(1));
 document.getElementById('test2').addEventListener('click', () => runPreset(2));
 document.getElementById('test3').addEventListener('click', () => runPreset(3));
-
-
-

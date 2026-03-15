@@ -2793,7 +2793,7 @@ if (calcBtn) {
                     footerHtml = `
                         <div style="margin-top:8px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-style:italic;" title="Ratio of Cv at 90% to Cv at 10% open">
-                                Installed Rangeability: ${rangeText}
+                                Effective Rangeability: ${rangeText}
                             </span>
                             <span style="font-style:italic;">Flow Regime: ${valve.regime}</span>
                         </div>

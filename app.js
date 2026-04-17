@@ -68,7 +68,7 @@
  * @const {boolean} DEBUG - Global switch to turn console logs on/off.
  */
 // Debug Tools Enable/Disable
-const DEBUG = true;
+const DEBUG = false;
 
 /**
  * Custom logger that respects the DEBUG flag and writes to both
@@ -2321,7 +2321,7 @@ function LTS_ValveSizing_CalculateAndRecommend()
             const score = calculateScore(candidate, opData);
 
             recommendations.push({
-                name: `${candidate.manufacturer} ${candidate.model}`,
+                name: `${candidate.model}`, // name: `${candidate.manufacturer} ${candidate.model}`, <-- Removed candidate.manufacturer here
                 size: candidate.size, ratedCv: candidate.ratedCv,
                 characteristic: candidate.characteristic || "Linear",
                 pressureClass: candidate.pressureClass,
@@ -3025,39 +3025,197 @@ document.getElementById("resetBtn").addEventListener("click", () => {
     logToConsole("Inputs reset (Custom Fluid data preserved).");
 });
 
-/* Quick tests */
+
+/* Quick tests - Updated with Tables 4, 6, and 7 */
 function runPreset(preset) {
-    // Ensure default Imperial/US units are selected for these tests
-    document.getElementById("flowRateUnit").value = "gpm";
-    document.getElementById("inletPressureUnit").value = "psig";
-    document.getElementById("outletPressureUnit").value = "psig";
-    document.getElementById("pipeDiameterUnit").value = "in";
-    document.getElementById("temperatureUnit").value = "f";
-    document.getElementById("fluidType").value = 0; // Water
+    const advCheckbox = document.getElementById("useAdvancedInputs");
+    const fluidTypeEl = document.getElementById("fluidType");
 
     if (preset === 1) {
-        document.getElementById("flowRate").value = 10;
-        document.getElementById("inletPressure").value = 100;
-        document.getElementById("outletPressure").value = 90; // dp = 10 psi
-        document.getElementById("pipeDiameter").value = 1;
-        document.getElementById("temperature").value = 68; // 20C
+        // --- CASE 1: PROPANE (Table 4) ---
+        // Turn OFF advanced inputs (Table 4 only has Normal conditions)
+        if (advCheckbox) {
+            advCheckbox.checked = false;
+            advCheckbox.dispatchEvent(new Event("change"));
+        }
+
+        // Units: Imperial
+        document.getElementById("flowRateUnit").value = "gpm";
+        document.getElementById("inletPressureUnit").value = "psig";
+        document.getElementById("outletPressureUnit").value = "psig";
+        document.getElementById("pipeDiameterUnit").value = "in";
+        document.getElementById("temperatureUnit").value = "f";
+
+        // Custom Fluid
+        fluidTypeEl.value = 1; 
+        fluidTypeEl.dispatchEvent(new Event("change"));
+
+        // Normal Condition Only
+        document.getElementById("flowRate").value = 800;
+        document.getElementById("inletPressure").value = 300;
+        document.getElementById("outletPressure").value = 275;
+        document.getElementById("pipeDiameter").value = 8;
+        document.getElementById("temperature").value = 70;
+
+        // Propane Properties
+        document.getElementById("Pc").value = 616.3; 
+        document.getElementById("Pv").value = 124.3; 
+        document.getElementById("density").value = 0.5; // SG
+        document.getElementById("densityUnit").value = "sg";
+        document.getElementById("viscosity").value = 0.22;
+        document.getElementById("viscosityUnit").value = "cSt";
+
     } else if (preset === 2) {
-        document.getElementById("flowRate").value = 535;
-        document.getElementById("inletPressure").value = 85;
-        document.getElementById("outletPressure").value = 30; // dp = 1 psi
+        // --- CASE 2: WATER (Table 6) ---
+        // Turn ON advanced inputs
+        if (advCheckbox) {
+            advCheckbox.checked = true;
+            advCheckbox.dispatchEvent(new Event("change"));
+        }
+
+        // Units: Metric
+        document.getElementById("flowRateUnit").value = "m3h";
+        document.getElementById("inletPressureUnit").value = "bar_g";
+        document.getElementById("outletPressureUnit").value = "bar_g";
+        document.getElementById("pipeDiameterUnit").value = "in";
+        document.getElementById("temperatureUnit").value = "c";
+
+        // Fluid: Water (Default)
+        fluidTypeEl.value = 0;
+        fluidTypeEl.dispatchEvent(new Event("change"));
+
+        // Normal Condition
+        document.getElementById("flowRate").value = 50;
+        document.getElementById("inletPressure").value = 7;
+        document.getElementById("outletPressure").value = 5.5;
         document.getElementById("pipeDiameter").value = 4;
-        document.getElementById("temperature").value = 77; // 20C
+        document.getElementById("temperature").value = 25;
+
+        // Advanced Units to Metric
+        document.getElementById("flowRateMinUnit").value = "m3h";
+        document.getElementById("inletPressureMinUnit").value = "bar_g";
+        document.getElementById("outletPressureMinUnit").value = "bar_g";
+        document.getElementById("flowRateMaxUnit").value = "m3h";
+        document.getElementById("inletPressureMaxUnit").value = "bar_g";
+        document.getElementById("outletPressureMaxUnit").value = "bar_g";
+
+        // Min/Max from Table 6
+        document.getElementById("flowRateMin").value = 20;
+        document.getElementById("inletPressureMin").value = 7;
+        document.getElementById("outletPressureMin").value = 6.2;
+        document.getElementById("flowRateMax").value = 80;
+        document.getElementById("inletPressureMax").value = 7;
+        document.getElementById("outletPressureMax").value = 4.8;
+
     } else {
-        document.getElementById("flowRate").value = 390;
-        document.getElementById("inletPressure").value = 20;
-        document.getElementById("outletPressure").value = 10; // dp = 100 psi
+        // --- CASE 3: HEAVY FUEL OIL OCB1 (Table 7) ---
+        // Turn ON advanced inputs
+        if (advCheckbox) {
+            advCheckbox.checked = true;
+            advCheckbox.dispatchEvent(new Event("change"));
+        }
+
+        // Units: Metric
+        document.getElementById("flowRateUnit").value = "m3h";
+        document.getElementById("inletPressureUnit").value = "bar_g";
+        document.getElementById("outletPressureUnit").value = "bar_g";
+        document.getElementById("pipeDiameterUnit").value = "in";
+        document.getElementById("temperatureUnit").value = "c";
+
+        // Custom Fluid
+        fluidTypeEl.value = 1;
+        fluidTypeEl.dispatchEvent(new Event("change"));
+
+        // Normal Condition
+        document.getElementById("flowRate").value = 25;
+        document.getElementById("inletPressure").value = 14;
+        document.getElementById("outletPressure").value = 11.8;
         document.getElementById("pipeDiameter").value = 4;
-        document.getElementById("temperature").value = 68; // 20C
+        document.getElementById("temperature").value = 60;
+
+        // Advanced Units to Metric
+        document.getElementById("flowRateMinUnit").value = "m3h";
+        document.getElementById("inletPressureMinUnit").value = "bar_g";
+        document.getElementById("outletPressureMinUnit").value = "bar_g";
+        document.getElementById("flowRateMaxUnit").value = "m3h";
+        document.getElementById("inletPressureMaxUnit").value = "bar_g";
+        document.getElementById("outletPressureMaxUnit").value = "bar_g";
+
+        // Min/Max from Table 7
+        document.getElementById("flowRateMin").value = 10;
+        document.getElementById("inletPressureMin").value = 14;
+        document.getElementById("outletPressureMin").value = 12.8;
+        document.getElementById("flowRateMax").value = 40;
+        document.getElementById("inletPressureMax").value = 14;
+        document.getElementById("outletPressureMax").value = 10.5;
+
+        // OCB1 Properties
+        document.getElementById("Pc").value = 240; 
+        document.getElementById("Pv").value = 0.1; 
+        document.getElementById("density").value = 968; 
+        document.getElementById("densityUnit").value = "kgm3";
+        document.getElementById("viscosity").value = 620;
+        document.getElementById("viscosityUnit").value = "cSt";
     }
-    // LTS_ValveSizing_ParameterUpdate(); // This is called by the click()
+
+    // Calculate
     document.getElementById("calculateBtn").click();
 }
 
+// Event Listeners for the test buttons
 document.getElementById('test1').addEventListener('click', () => runPreset(1));
 document.getElementById('test2').addEventListener('click', () => runPreset(2));
 document.getElementById('test3').addEventListener('click', () => runPreset(3));
+
+// ===================================================================================
+// LINKS SECTION INJECTION (TCC AND LINKEDIN)
+// ===================================================================================
+// ===================================================================================
+// LINKS SECTION INJECTION (TCC AND LINKEDIN)
+// ===================================================================================
+document.addEventListener("DOMContentLoaded", () => {
+    const linksContainer = document.createElement('div');
+    
+    // Apply your existing CSS class for panels to match the rest of the app perfectly
+    linksContainer.className = 'panel'; 
+    linksContainer.style.marginTop = '24px';
+    linksContainer.style.textAlign = 'center';
+    linksContainer.style.display = 'flex';
+    linksContainer.style.flexDirection = 'column';
+    linksContainer.style.gap = '16px';
+
+    linksContainer.innerHTML = `
+        <h3 style="margin: 0; color: var(--accent); font-size: 16px;">Project Resources & Authors</h3>
+        
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            
+            <a href="http://bd.centro.iff.edu.br/" target="_blank" class="btn primary" style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px;">
+                <span style="font-size: 14px;">📚</span> IFF TCC Library
+            </a>
+            
+            <a href="https://www.linkedin.com/in/YOUR_LINKEDIN_PROFILE_1" target="_blank" class="btn primary" style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px;">
+                <span style="font-size: 14px;">🔗</span> LinkedIn Author 1
+            </a>
+            
+            <a href="https://www.linkedin.com/in/YOUR_LINKEDIN_PROFILE_2" target="_blank" class="btn primary" style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px;">
+                <span style="font-size: 14px;">🔗</span> LinkedIn Author 2
+            </a>
+            
+        </div>
+
+        <div style="margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border-color); font-size: 11px; color: var(--muted); line-height: 1.5; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto;">
+            <strong>Disclaimer:</strong> This application is intended for educational and preliminary sizing purposes only. All calculations and recommendations should be independently verified by a qualified engineer before being applied to actual industrial process designs. The authors and associated institutions assume no liability for any direct or indirect damages resulting from the use of this software.
+        </div>
+    `;
+
+    const testContainer = document.getElementById('test1')?.parentElement;
+    if (testContainer) {
+        testContainer.after(linksContainer);
+    } else {
+        document.body.appendChild(linksContainer);
+    }
+});
+
+// ===================================================================================
+// END OF FILE
+// ===================================================================================

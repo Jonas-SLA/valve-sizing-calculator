@@ -2122,7 +2122,7 @@ function LTS_ValveSizing_CalculateAndRecommend()
         const open = openOp;
         let dist = 0;
         if (open < 60) dist = 60 - open;
-        else if (open > 75) dist = open - 75;
+        else if (open > 80) dist = open - 80;
         
         if (dist === 0) score += 30; // Ideal range (60-75%)
         else score += Math.max(0, 30 - (dist * 0.6)); // Decay
